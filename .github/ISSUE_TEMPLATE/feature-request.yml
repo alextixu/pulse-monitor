@@ -1,0 +1,46 @@
+name: Feature Request
+description: Suggest an idea to improve Pulse
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing your idea.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: What feature would you like?
+      placeholder: Add per-device battery warning thresholds
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Use Case
+      description: What user problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe your preferred behavior or UX.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Target Platform
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Cross-platform
+    validations:
+      required: true

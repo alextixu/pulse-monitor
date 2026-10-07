@@ -1,0 +1,15 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.swp
+.vs/
+.idea/
+*.DotSettings.user
+TestResults/
+artifacts/
+publish/
+
+## App data / logs
+*.log

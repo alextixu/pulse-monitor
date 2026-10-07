@@ -1,0 +1,46 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Pulse.App.ViewModels"
+             xmlns:views="using:Pulse.App.Views"
+             x:Class="Pulse.App.App"
+             RequestedThemeVariant="Default">
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://Pulse/Styles/Theme.axaml" />
+                <ResourceInclude Source="avares://Pulse/Styles/Icons.axaml" />
+                <ResourceInclude Source="avares://Pulse/Controls/StatPill.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme>
+            <FluentTheme.Palettes>
+                <ColorPaletteResources x:Key="Light" Accent="#0A84FF" RegionColor="#F5F6FA" />
+                <ColorPaletteResources x:Key="Dark" Accent="#0A84FF" RegionColor="#1C1C1E" />
+            </FluentTheme.Palettes>
+        </FluentTheme>
+        <StyleInclude Source="avares://Pulse/Styles/Controls.axaml" />
+    </Application.Styles>
+
+    <!-- Tab view models → views (used by the ContentControl in PopoverWindow) -->
+    <Application.DataTemplates>
+        <DataTemplate DataType="vm:DevicesViewModel">
+            <views:DevicesView />
+        </DataTemplate>
+        <DataTemplate DataType="vm:SystemViewModel">
+            <views:SystemView />
+        </DataTemplate>
+        <DataTemplate DataType="vm:LightingViewModel">
+            <views:LightingView />
+        </DataTemplate>
+        <DataTemplate DataType="vm:FansViewModel">
+            <views:FansView />
+        </DataTemplate>
+        <DataTemplate DataType="vm:SettingsViewModel">
+            <views:SettingsView />
+        </DataTemplate>
+    </Application.DataTemplates>
+</Application>

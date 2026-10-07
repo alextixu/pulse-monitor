@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <AssemblyName>Pulse</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon Condition="Exists('Assets\app.ico')">Assets\app.ico</ApplicationIcon>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <Description>Tray app showing device batteries, CPU/GPU telemetry, fan and RGB control.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Controls.ColorPicker" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.22" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.20" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.20" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.20" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pulse.Core\Pulse.Core.csproj" />
+    <ProjectReference Include="..\Pulse.Hardware\Pulse.Hardware.csproj" />
+    <ProjectReference Include="..\Pulse.Logitech\Pulse.Logitech.csproj" />
+    <ProjectReference Include="..\Pulse.Asus\Pulse.Asus.csproj" />
+    <ProjectReference Include="..\Pulse.Rgb\Pulse.Rgb.csproj" />
+    <ProjectReference Include="..\Pulse.Windows\Pulse.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

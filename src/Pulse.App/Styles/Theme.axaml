@@ -1,0 +1,126 @@
+<!--
+  Design tokens (Apple / Logitech Options+ look). Every brush exists in both theme variants; views use
+  {DynamicResource BccXxxBrush}. Accent / status colours are identical in Light and Dark so converters may
+  resolve them once; surface and text colours differ per variant.
+-->
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+            <Color x:Key="BccBackgroundColor">#F5F6FA</Color>
+            <Color x:Key="BccCardColor">#FFFFFF</Color>
+            <Color x:Key="BccTextPrimaryColor">#1D1D1F</Color>
+            <Color x:Key="BccTextSecondaryColor">#6E6E73</Color>
+            <Color x:Key="BccSubtleColor">#F2F2F7</Color>
+            <Color x:Key="BccTrackColor">#E5E5EA</Color>
+            <Color x:Key="BccDividerColor">#E5E5EA</Color>
+            <Color x:Key="BccHairlineColor">#14000000</Color>
+
+            <SolidColorBrush x:Key="BccBackgroundBrush" Color="#F5F6FA" />
+            <SolidColorBrush x:Key="BccCardBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="BccTextPrimaryBrush" Color="#1D1D1F" />
+            <SolidColorBrush x:Key="BccTextSecondaryBrush" Color="#6E6E73" />
+            <SolidColorBrush x:Key="BccTextTertiaryBrush" Color="#AEAEB2" />
+            <SolidColorBrush x:Key="BccSubtleBrush" Color="#EBEBF0" />
+            <SolidColorBrush x:Key="BccSubtleHoverBrush" Color="#E1E1E7" />
+            <SolidColorBrush x:Key="BccSubtlePressedBrush" Color="#D6D6DC" />
+            <SolidColorBrush x:Key="BccTrackBrush" Color="#E5E5EA" />
+            <SolidColorBrush x:Key="BccDividerBrush" Color="#E5E5EA" />
+            <SolidColorBrush x:Key="BccHairlineBrush" Color="#14000000" />
+            <SolidColorBrush x:Key="BccSegmentTrackBrush" Color="#E9E9EE" />
+            <SolidColorBrush x:Key="BccSegmentSelectedBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="BccIconTileBrush" Color="#F2F2F7" />
+            <SolidColorBrush x:Key="BccScrollThumbBrush" Color="#33000000" />
+
+            <SolidColorBrush x:Key="BccAccentTintBrush" Color="#180A84FF" />
+            <SolidColorBrush x:Key="BccSuccessTintBrush" Color="#1A34C759" />
+            <SolidColorBrush x:Key="BccWarningTintBrush" Color="#1FFF9F0A" />
+            <SolidColorBrush x:Key="BccDangerTintBrush" Color="#1AFF3B30" />
+            <SolidColorBrush x:Key="BccPurpleTintBrush" Color="#1AAF52DE" />
+            <SolidColorBrush x:Key="BccTealTintBrush" Color="#2030D5C8" />
+            <SolidColorBrush x:Key="BccPinkTintBrush" Color="#1AFF375F" />
+            <SolidColorBrush x:Key="BccNeutralTintBrush" Color="#EBEBF0" />
+
+            <BoxShadows x:Key="BccCardShadow">0 4 16 0 #14000000</BoxShadows>
+            <BoxShadows x:Key="BccPopoverShadow">0 8 32 0 #2E000000</BoxShadows>
+            <BoxShadows x:Key="BccSegmentShadow">0 1 4 0 #1F000000</BoxShadows>
+            <BoxShadows x:Key="BccNoShadow">0 0 0 0 #00000000</BoxShadows>
+        </ResourceDictionary>
+
+        <ResourceDictionary x:Key="Dark">
+            <Color x:Key="BccBackgroundColor">#1C1C1E</Color>
+            <Color x:Key="BccCardColor">#2C2C2E</Color>
+            <Color x:Key="BccTextPrimaryColor">#F5F5F7</Color>
+            <Color x:Key="BccTextSecondaryColor">#98989D</Color>
+            <Color x:Key="BccSubtleColor">#3A3A3C</Color>
+            <Color x:Key="BccTrackColor">#48484A</Color>
+            <Color x:Key="BccDividerColor">#3A3A3C</Color>
+            <Color x:Key="BccHairlineColor">#1FFFFFFF</Color>
+
+            <SolidColorBrush x:Key="BccBackgroundBrush" Color="#1C1C1E" />
+            <SolidColorBrush x:Key="BccCardBrush" Color="#2C2C2E" />
+            <SolidColorBrush x:Key="BccTextPrimaryBrush" Color="#F5F5F7" />
+            <SolidColorBrush x:Key="BccTextSecondaryBrush" Color="#98989D" />
+            <SolidColorBrush x:Key="BccTextTertiaryBrush" Color="#636366" />
+            <SolidColorBrush x:Key="BccSubtleBrush" Color="#3A3A3C" />
+            <SolidColorBrush x:Key="BccSubtleHoverBrush" Color="#48484A" />
+            <SolidColorBrush x:Key="BccSubtlePressedBrush" Color="#545456" />
+            <SolidColorBrush x:Key="BccTrackBrush" Color="#48484A" />
+            <SolidColorBrush x:Key="BccDividerBrush" Color="#3A3A3C" />
+            <SolidColorBrush x:Key="BccHairlineBrush" Color="#1FFFFFFF" />
+            <SolidColorBrush x:Key="BccSegmentTrackBrush" Color="#161618" />
+            <SolidColorBrush x:Key="BccSegmentSelectedBrush" Color="#3A3A3C" />
+            <SolidColorBrush x:Key="BccIconTileBrush" Color="#3A3A3C" />
+            <SolidColorBrush x:Key="BccScrollThumbBrush" Color="#4DFFFFFF" />
+
+            <SolidColorBrush x:Key="BccAccentTintBrush" Color="#2E0A84FF" />
+            <SolidColorBrush x:Key="BccSuccessTintBrush" Color="#2E34C759" />
+            <SolidColorBrush x:Key="BccWarningTintBrush" Color="#2EFF9F0A" />
+            <SolidColorBrush x:Key="BccDangerTintBrush" Color="#2EFF3B30" />
+            <SolidColorBrush x:Key="BccPurpleTintBrush" Color="#2EAF52DE" />
+            <SolidColorBrush x:Key="BccTealTintBrush" Color="#2E30D5C8" />
+            <SolidColorBrush x:Key="BccPinkTintBrush" Color="#2EFF375F" />
+            <SolidColorBrush x:Key="BccNeutralTintBrush" Color="#3A3A3C" />
+
+            <BoxShadows x:Key="BccCardShadow">0 4 16 0 #40000000</BoxShadows>
+            <BoxShadows x:Key="BccPopoverShadow">0 8 32 0 #80000000</BoxShadows>
+            <BoxShadows x:Key="BccSegmentShadow">0 1 4 0 #59000000</BoxShadows>
+            <BoxShadows x:Key="BccNoShadow">0 0 0 0 #00000000</BoxShadows>
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+
+    <!-- Variant-independent accent / status colours -->
+    <Color x:Key="BccAccentColor">#0A84FF</Color>
+    <Color x:Key="BccSuccessColor">#34C759</Color>
+    <Color x:Key="BccWarningColor">#FF9F0A</Color>
+    <Color x:Key="BccDangerColor">#FF3B30</Color>
+    <Color x:Key="BccPurpleColor">#AF52DE</Color>
+    <Color x:Key="BccTealColor">#30D5C8</Color>
+    <Color x:Key="BccPinkColor">#FF375F</Color>
+    <Color x:Key="BccYellowColor">#FFD60A</Color>
+    <Color x:Key="BccIndigoColor">#5E5CE6</Color>
+
+    <SolidColorBrush x:Key="BccAccentBrush" Color="#0A84FF" />
+    <SolidColorBrush x:Key="BccAccentHoverBrush" Color="#2B94FF" />
+    <SolidColorBrush x:Key="BccAccentPressedBrush" Color="#0870D8" />
+    <SolidColorBrush x:Key="BccSuccessBrush" Color="#34C759" />
+    <SolidColorBrush x:Key="BccWarningBrush" Color="#FF9F0A" />
+    <SolidColorBrush x:Key="BccDangerBrush" Color="#FF3B30" />
+    <SolidColorBrush x:Key="BccPurpleBrush" Color="#AF52DE" />
+    <SolidColorBrush x:Key="BccTealBrush" Color="#30D5C8" />
+    <SolidColorBrush x:Key="BccPinkBrush" Color="#FF375F" />
+    <SolidColorBrush x:Key="BccYellowBrush" Color="#FFD60A" />
+    <SolidColorBrush x:Key="BccIndigoBrush" Color="#5E5CE6" />
+    <SolidColorBrush x:Key="BccNeutralBrush" Color="#8E8E93" />
+    <SolidColorBrush x:Key="BccOnAccentBrush" Color="#FFFFFF" />
+
+    <!-- Geometry -->
+    <CornerRadius x:Key="BccCardCornerRadius">20</CornerRadius>
+    <CornerRadius x:Key="BccPillCornerRadius">12</CornerRadius>
+    <CornerRadius x:Key="BccChipCornerRadius">999</CornerRadius>
+    <CornerRadius x:Key="BccTileCornerRadius">14</CornerRadius>
+    <Thickness x:Key="BccCardPadding">16</Thickness>
+    <x:Double x:Key="BccPopoverWidth">400</x:Double>
+    <x:Double x:Key="BccPopoverHeight">660</x:Double>
+</ResourceDictionary>

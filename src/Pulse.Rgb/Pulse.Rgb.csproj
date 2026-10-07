@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Description>RGB lighting control through the OpenRGB SDK server.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pulse.Core\Pulse.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="OpenRGB.NET" Version="3.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.20" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.20" />
+  </ItemGroup>
+
+</Project>

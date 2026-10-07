@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Description>ASUS ROG / TUF peripheral battery provider (wireless keyboards and mice) via HidSharp.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pulse.Core\Pulse.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HidSharp" Version="2.6.4" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.20" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.20" />
+  </ItemGroup>
+
+</Project>

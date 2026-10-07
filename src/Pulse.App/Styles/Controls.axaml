@@ -1,0 +1,467 @@
+<!--
+  Style classes (apply with Classes="..."):
+    Border.card / .card.flat / .tile / .chip / .divider / .track / .segmented-track / .banner / .banner.warning / .banner.danger
+    TextBlock.heading / .title / .subtitle / .caption / .value / .value-sm / .secondary / .accent / .success / .warning / .danger
+    Button.pill / .pill-accent / .pill-danger / .chip / .icon / .swatch / .link
+    ToggleButton.chip (checked → accent tint)
+    RadioButton.segment (inside Border.segmented-track)
+    ScrollViewer.thin, ToggleSwitch.plain, ProgressBar.rounded, Expander.card
+-->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ===== Surfaces ===== -->
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{DynamicResource BccCardBrush}" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="16" />
+        <Setter Property="BoxShadow" Value="{DynamicResource BccCardShadow}" />
+    </Style>
+    <Style Selector="Border.card.flat">
+        <Setter Property="BoxShadow" Value="{DynamicResource BccNoShadow}" />
+    </Style>
+    <Style Selector="Border.tile">
+        <Setter Property="Background" Value="{DynamicResource BccIconTileBrush}" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Width" Value="44" />
+        <Setter Property="Height" Value="44" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.chip">
+        <Setter Property="Background" Value="{DynamicResource BccSubtleBrush}" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="8,3" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.chip > TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Border.divider">
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource BccDividerBrush}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Border.track">
+        <Setter Property="Background" Value="{DynamicResource BccTrackBrush}" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Height" Value="8" />
+        <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+    <Style Selector="Border.banner">
+        <Setter Property="Background" Value="{DynamicResource BccAccentTintBrush}" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="12,10" />
+    </Style>
+    <Style Selector="Border.banner.warning">
+        <Setter Property="Background" Value="{DynamicResource BccWarningTintBrush}" />
+    </Style>
+    <Style Selector="Border.banner.danger">
+        <Setter Property="Background" Value="{DynamicResource BccDangerTintBrush}" />
+    </Style>
+    <Style Selector="Border.segmented-track">
+        <Setter Property="Background" Value="{DynamicResource BccSegmentTrackBrush}" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="4" />
+    </Style>
+
+    <!-- ===== Text ===== -->
+    <Style Selector="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.heading">
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+    <Style Selector="TextBlock.title">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.subtitle">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.caption">
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.value">
+        <Setter Property="FontSize" Value="26" />
+        <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+    <Style Selector="TextBlock.value-sm">
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.secondary">
+        <Setter Property="Foreground" Value="{DynamicResource BccTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.accent">
+        <Setter Property="Foreground" Value="{DynamicResource BccAccentBrush}" />
+    </Style>
+    <Style Selector="TextBlock.success">
+        <Setter Property="Foreground" Value="{DynamicResource BccSuccessBrush}" />
+    </Style>
+    <Style Selector="TextBlock.warning">
+        <Setter Property="Foreground" Value="{DynamicResource BccWarningBrush}" />
+    </Style>
+    <Style Selector="TextBlock.danger">
+        <Setter Property="Foreground" Value="{DynamicResource BccDangerBrush}" />
+    </Style>
+
+    <Style Selector="PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="PathIcon.secondary">
+        <Setter Property="Foreground" Value="{DynamicResource BccTextSecondaryBrush}" />
+    </Style>
+
+    <!-- ===== Buttons ===== -->
+    <Style Selector="Button.pill">
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Background" Value="{DynamicResource BccSubtleBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.pill:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BccSubtleHoverBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.pill:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BccSubtlePressedBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.pill:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Opacity" Value="0.5" />
+    </Style>
+
+    <Style Selector="Button.pill-accent">
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Background" Value="{DynamicResource BccAccentBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccOnAccentBrush}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.pill-accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BccAccentHoverBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccOnAccentBrush}" />
+    </Style>
+    <Style Selector="Button.pill-accent:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BccAccentPressedBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccOnAccentBrush}" />
+    </Style>
+    <Style Selector="Button.pill-accent:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Opacity" Value="0.5" />
+    </Style>
+
+    <Style Selector="Button.pill-danger">
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Background" Value="{DynamicResource BccDangerTintBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccDangerBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.pill-danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BccDangerBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccOnAccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.chip">
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Background" Value="{DynamicResource BccSubtleBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BccSubtleHoverBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+    </Style>
+
+    <Style Selector="ToggleButton.chip">
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="MinHeight" Value="26" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Background" Value="{DynamicResource BccSubtleBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="ToggleButton.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BccSubtleHoverBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.chip:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BccAccentTintBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccAccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.icon">
+        <Setter Property="Width" Value="34" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="CornerRadius" Value="17" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextSecondaryBrush}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.icon PathIcon">
+        <Setter Property="Width" Value="17" />
+        <Setter Property="Height" Value="17" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.icon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BccSubtleHoverBrush}" />
+    </Style>
+    <Style Selector="Button.icon:pointerover PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.icon:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource BccSubtlePressedBrush}" />
+    </Style>
+    <Style Selector="Button.icon:disabled">
+        <Setter Property="Opacity" Value="0.4" />
+    </Style>
+
+    <Style Selector="Button.swatch">
+        <Setter Property="Width" Value="26" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BccHairlineBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.swatch:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource BccAccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.link">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="4,2" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource BccAccentBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource BccAccentHoverBrush}" />
+    </Style>
+
+    <!-- ===== Segmented control ===== -->
+    <Style Selector="RadioButton.segment">
+        <Setter Property="Padding" Value="4,7" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <ControlTemplate TargetType="RadioButton">
+                <Border Name="PART_Pill"
+                        Background="Transparent"
+                        CornerRadius="10"
+                        Padding="{TemplateBinding Padding}"
+                        BoxShadow="{DynamicResource BccNoShadow}">
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      Foreground="{TemplateBinding Foreground}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="RadioButton.segment:pointerover /template/ Border#PART_Pill">
+        <Setter Property="Background" Value="{DynamicResource BccHairlineBrush}" />
+    </Style>
+    <Style Selector="RadioButton.segment:checked">
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="RadioButton.segment:checked /template/ Border#PART_Pill">
+        <Setter Property="Background" Value="{DynamicResource BccSegmentSelectedBrush}" />
+        <Setter Property="BoxShadow" Value="{DynamicResource BccSegmentShadow}" />
+    </Style>
+    <Style Selector="RadioButton.segment PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource BccTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="RadioButton.segment:checked PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource BccAccentBrush}" />
+    </Style>
+    <Style Selector="RadioButton.segment TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource BccTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="RadioButton.segment:checked TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+    </Style>
+
+    <!-- ===== Inputs ===== -->
+    <Style Selector="Slider">
+        <Setter Property="Foreground" Value="{DynamicResource BccAccentBrush}" />
+        <Setter Property="MinHeight" Value="28" />
+    </Style>
+    <Style Selector="Slider /template/ Thumb">
+        <Setter Property="CornerRadius" Value="999" />
+    </Style>
+    <Style Selector="Slider /template/ RepeatButton">
+        <Setter Property="CornerRadius" Value="999" />
+    </Style>
+
+    <Style Selector="ToggleSwitch">
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="ToggleSwitch.plain">
+        <Setter Property="OnContent" Value="{x:Null}" />
+        <Setter Property="OffContent" Value="{x:Null}" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="Margin" Value="0" />
+    </Style>
+
+    <Style Selector="ComboBox">
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Background" Value="{DynamicResource BccSubtleBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="TextBox">
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Background" Value="{DynamicResource BccSubtleBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="MinHeight" Value="34" />
+    </Style>
+    <Style Selector="NumericUpDown">
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Background" Value="{DynamicResource BccSubtleBrush}" />
+    </Style>
+    <Style Selector="NumericUpDown /template/ ButtonSpinner">
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="{DynamicResource BccSubtleBrush}" />
+    </Style>
+    <Style Selector="NumericUpDown /template/ ButtonSpinner /template/ Border">
+        <Setter Property="CornerRadius" Value="12" />
+    </Style>
+    <Style Selector="NumericUpDown /template/ TextBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="CheckBox">
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+    </Style>
+
+    <Style Selector="ProgressBar.rounded">
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="MinHeight" Value="8" />
+        <Setter Property="Height" Value="8" />
+        <Setter Property="Background" Value="{DynamicResource BccTrackBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccAccentBrush}" />
+    </Style>
+
+    <Style Selector="Expander.card">
+        <Setter Property="Background" Value="{DynamicResource BccCardBrush}" />
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="16,8,16,16" />
+    </Style>
+    <Style Selector="Expander.card /template/ ToggleButton#ExpanderHeader">
+        <Setter Property="CornerRadius" Value="20" />
+        <Setter Property="Padding" Value="16,12" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <!-- Expanders and their headers span the full width (Fluent sizes them to their content). -->
+    <Style Selector="Expander">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Expander /template/ ToggleButton#ExpanderHeader">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Expander /template/ ToggleButton#ExpanderHeader /template/ Border">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+
+    <!-- ===== Scrolling ===== -->
+    <Style Selector="ScrollViewer.thin">
+        <Setter Property="AllowAutoHide" Value="True" />
+    </Style>
+    <Style Selector="ScrollViewer.thin /template/ ScrollBar">
+        <Setter Property="AllowAutoHide" Value="True" />
+    </Style>
+    <Style Selector="ScrollViewer.thin /template/ ScrollBar /template/ Thumb">
+        <Setter Property="Background" Value="{DynamicResource BccScrollThumbBrush}" />
+        <Setter Property="CornerRadius" Value="999" />
+    </Style>
+
+    <!-- ===== Inline toasts (WindowNotificationManager) ===== -->
+    <Style Selector="NotificationCard">
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Width" Value="320" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="NotificationCard /template/ Border">
+        <Setter Property="CornerRadius" Value="14" />
+    </Style>
+
+    <!-- ===== Tooltips / flyouts ===== -->
+    <Style Selector="ToolTip">
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Background" Value="{DynamicResource BccCardBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BccHairlineBrush}" />
+        <Setter Property="Padding" Value="10,6" />
+    </Style>
+    <Style Selector="FlyoutPresenter">
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="Background" Value="{DynamicResource BccCardBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BccHairlineBrush}" />
+    </Style>
+    <Style Selector="MenuFlyoutPresenter">
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Background" Value="{DynamicResource BccCardBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BccHairlineBrush}" />
+    </Style>
+</Styles>

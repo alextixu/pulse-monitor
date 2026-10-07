@@ -1,0 +1,97 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Pulse.App.ViewModels"
+        xmlns:loc="using:Pulse.App.Localization"
+        xmlns:conv="using:Pulse.App.Converters"
+        x:Class="Pulse.App.Views.PopoverWindow"
+        x:DataType="vm:MainViewModel"
+        Title="{x:Static loc:Strings.AppTitle}"
+        Width="448" Height="708"
+        SystemDecorations="None"
+        TransparencyLevelHint="Transparent"
+        Background="Transparent"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ShowActivated="True"
+        WindowStartupLocation="Manual"
+        SizeToContent="Manual"
+        FontFamily="fonts:Inter#Inter"
+        FontSize="13">
+
+    <!-- Root: transparent margin around the card leaves room for the drop shadow (ShadowMargin = 24). -->
+    <Panel x:Name="Root" Background="Transparent">
+        <Border x:Name="Card"
+                Margin="24"
+                Width="400" Height="660"
+                CornerRadius="20"
+                Background="{DynamicResource BccBackgroundBrush}"
+                BorderBrush="{DynamicResource BccHairlineBrush}"
+                BorderThickness="1"
+                BoxShadow="{DynamicResource BccPopoverShadow}">
+            <Border CornerRadius="20" ClipToBounds="True">
+                <Grid RowDefinitions="Auto,Auto,*">
+
+                    <!-- Header: title + status dot, refresh, settings -->
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="20,16,14,6">
+                        <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                            <TextBlock Classes="heading" Text="{x:Static loc:Strings.AppTitle}" TextWrapping="NoWrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                         Fill="{Binding StatusTone, Converter={x:Static conv:ToneToBrushConverter.Instance}}" />
+                                <TextBlock Classes="caption" Text="{Binding StatusText}" TextWrapping="NoWrap" VerticalAlignment="Center" />
+                                <Border Classes="chip" Padding="6,1" IsVisible="{Binding IsDemo}">
+                                    <TextBlock Text="{x:Static loc:Strings.DemoModeBadge}" />
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Button Grid.Column="1" Classes="icon"
+                                Command="{Binding RefreshCommand}"
+                                ToolTip.Tip="{x:Static loc:Strings.Refresh}">
+                            <PathIcon Data="{StaticResource IconRefresh}" />
+                        </Button>
+                        <Button Grid.Column="2" Classes="icon"
+                                Command="{Binding OpenSettingsCommand}"
+                                ToolTip.Tip="{x:Static loc:Strings.Settings}">
+                            <PathIcon Data="{StaticResource IconSettings}" />
+                        </Button>
+                    </Grid>
+
+                    <!-- Segmented tab control -->
+                    <Border Grid.Row="1" Classes="segmented-track" Margin="16,6,16,10">
+                        <ItemsControl ItemsSource="{Binding Tabs}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Rows="1" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:MainTabItem">
+                                    <RadioButton Classes="segment"
+                                                 GroupName="MainTabs"
+                                                 IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                 ToolTip.Tip="{Binding Title}">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <PathIcon Width="14" Height="14" VerticalAlignment="Center"
+                                                      Data="{Binding IconKey, Converter={x:Static conv:IconKeyConverter.Instance}}" />
+                                            <TextBlock Text="{Binding Title}" TextWrapping="NoWrap" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </RadioButton>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+
+                    <!-- Tab content (DataTemplates in App.axaml map view models to views) -->
+                    <!-- Padding lives on the content (ScrollViewer.Padding is only applied at arrange time, which breaks width-constrained layouts). -->
+                    <ScrollViewer Grid.Row="2" Classes="thin"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ContentControl x:Name="TabContent" Content="{Binding ActiveViewModel}" Margin="16,2,16,16" />
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Border>
+    </Panel>
+</Window>

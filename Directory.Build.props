@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningsAsErrors>nullable</WarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <RootNamespace>$(MSBuildProjectName)</RootNamespace>
+    <Authors>Pulse</Authors>
+    <Product>Pulse</Product>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,228 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Pulse.App.ViewModels"
+             xmlns:loc="using:Pulse.App.Localization"
+             xmlns:conv="using:Pulse.App.Converters"
+             xmlns:controls="using:Pulse.App.Controls"
+             xmlns:models="using:Pulse.Core.Models"
+             x:Class="Pulse.App.Views.LightingView"
+             x:DataType="vm:LightingViewModel">
+
+    <UserControl.Resources>
+        <!-- Preset swatch row (global + per device) -->
+        <DataTemplate x:Key="SwatchTemplate" x:DataType="vm:ColorSwatchItem">
+            <Button Classes="swatch" Background="{Binding Brush}" Command="{Binding Command}" CommandParameter="{Binding Color}" ToolTip.Tip="{Binding Hex}" />
+        </DataTemplate>
+        <DataTemplate x:Key="ZoneSwatchTemplate" x:DataType="vm:ZoneSwatchItem">
+            <Button Classes="swatch" Width="20" Height="20" Background="{Binding Brush}" Command="{Binding Command}" CommandParameter="{Binding Request}" ToolTip.Tip="{Binding Hex}" />
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <StackPanel Spacing="12">
+
+        <!-- Status card -->
+        <Border Classes="card">
+            <StackPanel Spacing="12">
+                <Grid ColumnDefinitions="Auto,*">
+                    <Border Grid.Column="0" Classes="tile" Background="{Binding StatusTone, Converter={x:Static conv:ToneToBrushConverter.Instance}, ConverterParameter=tint}">
+                        <PathIcon Data="{StaticResource IconRgb}" Width="22" Height="22" Foreground="{Binding StatusTone, Converter={x:Static conv:ToneToBrushConverter.Instance}}" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="3">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="{Binding StatusTone, Converter={x:Static conv:ToneToBrushConverter.Instance}}" />
+                            <TextBlock Classes="title" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Text="{Binding StatusText}" />
+                        </StackPanel>
+                        <TextBlock Classes="caption" Text="{Binding StatusMessage}" IsVisible="{Binding HasStatusMessage}" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <controls:StatPill Tone="Neutral" Icon="{StaticResource IconPlug}" Text="{Binding HostPortText}" />
+                            <controls:StatPill Tone="Neutral" Text="{Binding ServerVersionText}" IsVisible="{Binding HasServerVersion}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="pill-accent" Command="{Binding ReconnectCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource IconRefresh}" Width="13" Height="13" Foreground="{DynamicResource BccOnAccentBrush}" />
+                            <TextBlock Text="{x:Static loc:Strings.Reconnect}" Foreground="{DynamicResource BccOnAccentBrush}" TextWrapping="NoWrap" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="pill" Command="{Binding OpenDownloadCommand}" IsVisible="{Binding !IsConnected}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource IconDownload}" Width="13" Height="13" />
+                            <TextBlock Text="{x:Static loc:Strings.DownloadOpenRgb}" TextWrapping="NoWrap" />
+                        </StackPanel>
+                    </Button>
+                    <ProgressBar IsIndeterminate="True" Width="60" Height="4" VerticalAlignment="Center" Classes="rounded" IsVisible="{Binding IsBusy}" />
+                </StackPanel>
+
+                <TextBlock Classes="caption" Text="{x:Static loc:Strings.RgbHint}" IsVisible="{Binding !IsConnected}" />
+                <TextBlock Classes="caption danger" Text="{Binding Error}" IsVisible="{Binding HasError}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Global: apply to all -->
+        <Border Classes="card" IsVisible="{Binding IsConnected}">
+            <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Classes="title" VerticalAlignment="Center" Text="{x:Static loc:Strings.ApplyToAllShort}" />
+                    <Button Grid.Column="1" Classes="chip" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <Ellipse Width="12" Height="12" Fill="{Binding CustomColor, Converter={x:Static conv:RgbColorToBrushConverter.Instance}}" />
+                            <TextBlock Text="{x:Static loc:Strings.CustomColor}" TextWrapping="NoWrap" />
+                        </StackPanel>
+                        <Button.Flyout>
+                            <Flyout Placement="BottomEdgeAlignedRight">
+                                <StackPanel Spacing="8" Width="300">
+                                    <ColorView Color="{Binding CustomColor, Mode=TwoWay}" ColorModel="Rgba"
+                                               IsAlphaEnabled="False" IsAlphaVisible="False" IsColorPaletteVisible="False"
+                                               IsColorModelVisible="False" IsAccentColorsVisible="False" Height="320" />
+                                    <Button Classes="pill-accent" HorizontalAlignment="Stretch" Content="{x:Static loc:Strings.Apply}" Command="{Binding ApplyCustomToAllCommand}" />
+                                </StackPanel>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Presets}" ItemTemplate="{StaticResource SwatchTemplate}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" ItemSpacing="7" LineSpacing="6" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- Loading / none -->
+        <Border Classes="card" IsVisible="{Binding IsLoadingDevices}">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <ProgressBar IsIndeterminate="True" Width="80" Height="4" VerticalAlignment="Center" Classes="rounded" />
+                <TextBlock Classes="caption" VerticalAlignment="Center" Text="{x:Static loc:Strings.RgbLoadingDevices}" />
+            </StackPanel>
+        </Border>
+        <Border Classes="card" IsVisible="{Binding ShowNoDevices}">
+            <TextBlock Classes="caption" TextAlignment="Center" Text="{x:Static loc:Strings.RgbNoDevices}" />
+        </Border>
+
+        <!-- Device cards -->
+        <ItemsControl ItemsSource="{Binding Devices}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Spacing="12" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RgbDeviceViewModel">
+                    <Border Classes="card">
+                        <StackPanel Spacing="12">
+                            <!-- Header -->
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Border Grid.Column="0" Classes="tile" Background="{DynamicResource BccPinkTintBrush}">
+                                    <PathIcon Data="{Binding Icon}" Width="22" Height="22" Foreground="{DynamicResource BccPinkBrush}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="12,0,10,0" VerticalAlignment="Center" Spacing="5">
+                                    <TextBlock Classes="title" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Text="{Binding Name}" ToolTip.Tip="{Binding Name}" />
+                                    <WrapPanel Orientation="Horizontal" ItemSpacing="5" LineSpacing="4">
+                                        <Border Classes="chip"><TextBlock Text="{Binding TypeText}" /></Border>
+                                        <Border Classes="chip"><TextBlock Text="{Binding LedCountText}" /></Border>
+                                    </WrapPanel>
+                                </StackPanel>
+                                <Border Grid.Column="2" Width="30" Height="30" CornerRadius="15" VerticalAlignment="Center"
+                                        Background="{Binding CurrentBrush}" BorderBrush="{DynamicResource BccHairlineBrush}" BorderThickness="2"
+                                        ToolTip.Tip="{Binding CurrentHex}" />
+                            </Grid>
+
+                            <!-- Mode -->
+                            <Grid ColumnDefinitions="Auto,*">
+                                <TextBlock Grid.Column="0" Classes="caption" Width="44" VerticalAlignment="Center" Text="{x:Static loc:Strings.Mode}" />
+                                <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding Modes}" SelectedItem="{Binding SelectedMode, Mode=TwoWay}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate x:DataType="models:RgbMode">
+                                            <TextBlock Text="{Binding Name}" TextWrapping="NoWrap" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+
+                            <!-- Colour -->
+                            <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding ShowColor}">
+                                <TextBlock Grid.Column="0" Classes="caption" Width="44" VerticalAlignment="Top" Margin="0,5,0,0" Text="{x:Static loc:Strings.Color}" />
+                                <ItemsControl Grid.Column="1" ItemsSource="{Binding Presets}" ItemTemplate="{StaticResource SwatchTemplate}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <Button Grid.Column="2" Classes="icon" Width="28" Height="28" Margin="6,0,0,0" VerticalAlignment="Top" ToolTip.Tip="{x:Static loc:Strings.CustomColor}">
+                                    <PathIcon Data="{StaticResource IconRgb}" Width="15" Height="15" />
+                                    <Button.Flyout>
+                                        <Flyout Placement="BottomEdgeAlignedRight">
+                                            <StackPanel Spacing="8" Width="300">
+                                                <ColorView Color="{Binding CustomColor, Mode=TwoWay}" ColorModel="Rgba"
+                                                           IsAlphaEnabled="False" IsAlphaVisible="False" IsColorPaletteVisible="False"
+                                                           IsColorModelVisible="False" IsAccentColorsVisible="False" Height="320" />
+                                                <Button Classes="pill-accent" HorizontalAlignment="Stretch" Content="{x:Static loc:Strings.Apply}" Command="{Binding ApplyCustomCommand}" />
+                                            </StackPanel>
+                                        </Flyout>
+                                    </Button.Flyout>
+                                </Button>
+                            </Grid>
+
+                            <!-- Brightness -->
+                            <StackPanel Spacing="2" IsVisible="{Binding ShowBrightness}">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <TextBlock Grid.Column="0" Classes="caption" Width="44" VerticalAlignment="Center" Text="{x:Static loc:Strings.Brightness}" />
+                                    <Slider Grid.Column="1" Minimum="{Binding BrightnessMin}" Maximum="{Binding BrightnessMax}" Value="{Binding Brightness, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="2" Classes="caption" Width="34" TextAlignment="Right" VerticalAlignment="Center" Text="{Binding BrightnessText}" />
+                                </Grid>
+                                <TextBlock Classes="caption" FontSize="10.5" Margin="44,0,0,0" Text="{x:Static loc:Strings.BrightnessNote}" />
+                            </StackPanel>
+
+                            <!-- Speed -->
+                            <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding ShowSpeed}">
+                                <TextBlock Grid.Column="0" Classes="caption" Width="44" VerticalAlignment="Center" Text="{x:Static loc:Strings.Speed}" />
+                                <Slider Grid.Column="1" Minimum="{Binding SpeedMin}" Maximum="{Binding SpeedMax}" Value="{Binding Speed, Mode=TwoWay}" />
+                                <TextBlock Grid.Column="2" Classes="caption" Width="34" TextAlignment="Right" VerticalAlignment="Center" Text="{Binding SpeedText}" />
+                            </Grid>
+
+                            <!-- Zones -->
+                            <Expander IsVisible="{Binding HasZones}" IsExpanded="True" HorizontalAlignment="Stretch" Background="{DynamicResource BccSubtleBrush}" CornerRadius="14" BorderThickness="0" Padding="12,4,12,10">
+                                <Expander.Header>
+                                    <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding ZonesHeader}" />
+                                </Expander.Header>
+                                <ItemsControl ItemsSource="{Binding Zones}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Spacing="8" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:RgbZoneViewModel">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                                                    <TextBlock FontSize="12.5" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Text="{Binding Name}" />
+                                                    <TextBlock Classes="caption" FontSize="10.5" Text="{Binding LedCountText}" />
+                                                </StackPanel>
+                                                <ItemsControl Grid.Column="1" ItemsSource="{Binding Swatches}" ItemTemplate="{StaticResource ZoneSwatchTemplate}" VerticalAlignment="Center">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <StackPanel Orientation="Horizontal" Spacing="4" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                </ItemsControl>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Expander>
+
+                            <ProgressBar IsIndeterminate="True" Height="3" Classes="rounded" IsVisible="{Binding IsBusy}" />
+                            <TextBlock Classes="caption danger" Text="{Binding Error}" IsVisible="{Binding HasError}" />
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

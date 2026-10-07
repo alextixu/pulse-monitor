@@ -1,0 +1,191 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Pulse.App.ViewModels"
+             xmlns:loc="using:Pulse.App.Localization"
+             xmlns:conv="using:Pulse.App.Converters"
+             x:Class="Pulse.App.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+    <UserControl.Styles>
+        <!-- Row label inside settings cards -->
+        <Style Selector="TextBlock.row-label">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Margin" Value="0,0,12,0" />
+        </Style>
+        <Style Selector="Grid.row">
+            <Setter Property="MinHeight" Value="36" />
+        </Style>
+        <Style Selector="ComboBox.setting">
+            <Setter Property="MinWidth" Value="130" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Spacing="12">
+
+        <!-- 一般 -->
+        <Border Classes="card">
+            <StackPanel Spacing="6">
+                <TextBlock Classes="title" Margin="0,0,0,4" Text="{x:Static loc:Strings.SettingsGeneral}" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingTheme}" />
+                    <ComboBox Grid.Column="1" Classes="setting" ItemsSource="{Binding ThemeOptions}" SelectedItem="{Binding SelectedTheme, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:OptionItem">
+                                <TextBlock Text="{Binding Label}" TextWrapping="NoWrap" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
+                <Border Classes="divider" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingStartWithSystem}" />
+                        <TextBlock Classes="caption" Text="{x:Static loc:Strings.AutoStartUnsupported}" IsVisible="{Binding !AutoStartSupported}" />
+                        <TextBlock Classes="caption danger" Text="{Binding AutoStartError}" IsVisible="{Binding AutoStartError, Converter={x:Static conv:NullToVisibleConverter.Instance}}" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" Classes="plain" IsChecked="{Binding StartWithSystem, Mode=TwoWay}" IsEnabled="{Binding AutoStartSupported}" />
+                </Grid>
+                <Border Classes="divider" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingRequestElevationOnStartup}" />
+                        <TextBlock Classes="caption" Text="{x:Static loc:Strings.ElevateHint}" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" Classes="plain" IsChecked="{Binding RequestElevationOnStartup, Mode=TwoWay}" IsEnabled="{Binding CanElevate}" />
+                </Grid>
+                <Border Classes="divider" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingTrayIconDisplay}" />
+                    <ComboBox Grid.Column="1" Classes="setting" ItemsSource="{Binding TrayIconOptions}" SelectedItem="{Binding SelectedTrayIconMode, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:OptionItem">
+                                <TextBlock Text="{Binding Label}" TextWrapping="NoWrap" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- 更新頻率 -->
+        <Border Classes="card">
+            <StackPanel Spacing="4">
+                <TextBlock Classes="title" Margin="0,0,0,4" Text="{x:Static loc:Strings.SettingsRefresh}" />
+
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingHardwareRefresh}" />
+                    <TextBlock Grid.Column="1" Classes="value-sm" FontSize="14" TextWrapping="NoWrap" Text="{Binding HardwareRefreshText}" />
+                </Grid>
+                <Slider Minimum="1" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding HardwareRefreshSeconds, Mode=TwoWay}" />
+
+                <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
+                    <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingBatteryRefresh}" />
+                    <TextBlock Grid.Column="1" Classes="value-sm" FontSize="14" TextWrapping="NoWrap" Text="{Binding BatteryRefreshText}" />
+                </Grid>
+                <Slider Minimum="10" Maximum="300" TickFrequency="10" IsSnapToTickEnabled="True" Value="{Binding BatteryRefreshSeconds, Mode=TwoWay}" />
+            </StackPanel>
+        </Border>
+
+        <!-- OpenRGB -->
+        <Border Classes="card">
+            <StackPanel Spacing="6">
+                <TextBlock Classes="title" Margin="0,0,0,4" Text="{x:Static loc:Strings.SettingsOpenRgb}" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingOpenRgbHost}" />
+                    <TextBox Grid.Column="1" Width="150" Text="{Binding OpenRgbHost, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Watermark="127.0.0.1" />
+                </Grid>
+                <Border Classes="divider" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingOpenRgbPort}" />
+                    <NumericUpDown Grid.Column="1" Width="150" Minimum="1" Maximum="65535" Increment="1" FormatString="0"
+                                   Value="{Binding OpenRgbPort, Mode=TwoWay}" />
+                </Grid>
+                <Border Classes="divider" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingAutoConnectOpenRgb}" />
+                    <ToggleSwitch Grid.Column="1" Classes="plain" IsChecked="{Binding AutoConnectOpenRgb, Mode=TwoWay}" />
+                </Grid>
+                <Border Classes="divider" />
+
+                <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0">
+                    <Button Grid.Column="0" Classes="pill" Command="{Binding TestConnectionCommand}" Content="{x:Static loc:Strings.TestConnection}" />
+                    <TextBlock Grid.Column="1" Classes="caption" Margin="10,0,0,0" VerticalAlignment="Center" Text="{Binding TestResultText}"
+                               Foreground="{Binding TestResultTone, Converter={x:Static conv:ToneToBrushConverter.Instance}}"
+                               IsVisible="{Binding TestResultText, Converter={x:Static conv:NullToVisibleConverter.Instance}}" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- 通知 -->
+        <Border Classes="card">
+            <StackPanel Spacing="6">
+                <TextBlock Classes="title" Margin="0,0,0,4" Text="{x:Static loc:Strings.SettingsNotifications}" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingNotifyLowBattery}" />
+                    <ToggleSwitch Grid.Column="1" Classes="plain" IsChecked="{Binding NotifyOnLowBattery, Mode=TwoWay}" />
+                </Grid>
+                <Border Classes="divider" />
+
+                <StackPanel Spacing="4" IsEnabled="{Binding NotifyOnLowBattery}">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingLowBatteryThreshold}" />
+                        <TextBlock Grid.Column="1" Classes="value-sm" FontSize="14" TextWrapping="NoWrap" Text="{Binding LowBatteryThresholdText}" />
+                    </Grid>
+                    <Slider Minimum="5" Maximum="50" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding LowBatteryThresholdPercent, Mode=TwoWay}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- 關於 -->
+        <Border Classes="card">
+            <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Border Grid.Column="0" Classes="tile" Background="{DynamicResource BccAccentTintBrush}">
+                        <PathIcon Data="{StaticResource IconBattery}" Width="22" Height="22" Foreground="{DynamicResource BccAccentBrush}" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Classes="title" Text="{x:Static loc:Strings.AppTitle}" TextWrapping="NoWrap" />
+                        <TextBlock Classes="caption" Text="{Binding VersionText}" />
+                    </StackPanel>
+                    <Border Grid.Column="2" Classes="chip" VerticalAlignment="Center" IsVisible="{Binding IsDemo}">
+                        <TextBlock Text="{x:Static loc:Strings.DemoModeBadge}" />
+                    </Border>
+                </Grid>
+
+                <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
+                    <Button Classes="pill" Command="{Binding OpenSettingsFolderCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource IconFolder}" Width="14" Height="14" />
+                            <TextBlock Text="{x:Static loc:Strings.OpenSettingsFolder}" TextWrapping="NoWrap" />
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="pill" Command="{Binding OpenLogFileCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource IconDocument}" Width="14" Height="14" />
+                            <TextBlock Text="{x:Static loc:Strings.OpenLogFile}" TextWrapping="NoWrap" />
+                        </StackPanel>
+                    </Button>
+                </WrapPanel>
+                <TextBlock Classes="caption danger" Text="{Binding ActionError}" IsVisible="{Binding HasActionError}" />
+
+                <StackPanel Spacing="2">
+                    <TextBlock Classes="caption" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Text="{Binding SettingsFilePath}" ToolTip.Tip="{Binding SettingsFilePath}" />
+                    <TextBlock Classes="caption" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Text="{Binding LogFilePath}" ToolTip.Tip="{Binding LogFilePath}" />
+                </StackPanel>
+                <TextBlock Classes="caption" Text="{Binding AuthorLine}" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

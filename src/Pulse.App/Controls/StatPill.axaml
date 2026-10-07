@@ -1,0 +1,99 @@
+<!-- ControlTheme for controls:StatPill (merged into App resources). Pseudo-classes :neutral/:accent/:success/:warning/:danger/:purple/:teal/:pink/:solid -->
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:Pulse.App.Controls">
+
+    <ControlTheme x:Key="{x:Type controls:StatPill}" TargetType="controls:StatPill">
+        <Setter Property="Background" Value="{DynamicResource BccNeutralTintBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BccTextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="8,3" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Template">
+            <ControlTemplate TargetType="controls:StatPill">
+                <Border Background="{TemplateBinding Background}"
+                        CornerRadius="{TemplateBinding CornerRadius}"
+                        Padding="{TemplateBinding Padding}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}">
+                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                        <PathIcon Name="PART_Icon"
+                                  Data="{TemplateBinding Icon}"
+                                  Width="{TemplateBinding IconSize}"
+                                  Height="{TemplateBinding IconSize}"
+                                  Foreground="{TemplateBinding Foreground}"
+                                  IsVisible="{TemplateBinding Icon, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                  VerticalAlignment="Center" />
+                        <TextBlock Name="PART_Text"
+                                   Text="{TemplateBinding Text}"
+                                   FontSize="{TemplateBinding FontSize}"
+                                   FontWeight="{TemplateBinding FontWeight}"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   TextWrapping="NoWrap"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+
+        <Style Selector="^:accent">
+            <Setter Property="Background" Value="{DynamicResource BccAccentTintBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource BccAccentBrush}" />
+        </Style>
+        <Style Selector="^:success">
+            <Setter Property="Background" Value="{DynamicResource BccSuccessTintBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource BccSuccessBrush}" />
+        </Style>
+        <Style Selector="^:warning">
+            <Setter Property="Background" Value="{DynamicResource BccWarningTintBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource BccWarningBrush}" />
+        </Style>
+        <Style Selector="^:danger">
+            <Setter Property="Background" Value="{DynamicResource BccDangerTintBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource BccDangerBrush}" />
+        </Style>
+        <Style Selector="^:purple">
+            <Setter Property="Background" Value="{DynamicResource BccPurpleTintBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource BccPurpleBrush}" />
+        </Style>
+        <Style Selector="^:teal">
+            <Setter Property="Background" Value="{DynamicResource BccTealTintBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource BccTealBrush}" />
+        </Style>
+        <Style Selector="^:pink">
+            <Setter Property="Background" Value="{DynamicResource BccPinkTintBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource BccPinkBrush}" />
+        </Style>
+
+        <Style Selector="^:solid">
+            <Setter Property="Foreground" Value="{DynamicResource BccOnAccentBrush}" />
+        </Style>
+        <Style Selector="^:solid:neutral">
+            <Setter Property="Background" Value="{DynamicResource BccNeutralBrush}" />
+        </Style>
+        <Style Selector="^:solid:accent">
+            <Setter Property="Background" Value="{DynamicResource BccAccentBrush}" />
+        </Style>
+        <Style Selector="^:solid:success">
+            <Setter Property="Background" Value="{DynamicResource BccSuccessBrush}" />
+        </Style>
+        <Style Selector="^:solid:warning">
+            <Setter Property="Background" Value="{DynamicResource BccWarningBrush}" />
+        </Style>
+        <Style Selector="^:solid:danger">
+            <Setter Property="Background" Value="{DynamicResource BccDangerBrush}" />
+        </Style>
+        <Style Selector="^:solid:purple">
+            <Setter Property="Background" Value="{DynamicResource BccPurpleBrush}" />
+        </Style>
+        <Style Selector="^:solid:teal">
+            <Setter Property="Background" Value="{DynamicResource BccTealBrush}" />
+        </Style>
+        <Style Selector="^:solid:pink">
+            <Setter Property="Background" Value="{DynamicResource BccPinkBrush}" />
+        </Style>
+    </ControlTheme>
+</ResourceDictionary>

@@ -1,0 +1,110 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Pulse.App.ViewModels"
+             xmlns:loc="using:Pulse.App.Localization"
+             xmlns:conv="using:Pulse.App.Converters"
+             xmlns:controls="using:Pulse.App.Controls"
+             x:Class="Pulse.App.Views.DevicesView"
+             x:DataType="vm:DevicesViewModel">
+
+    <StackPanel Spacing="10">
+
+        <!-- Header line: "n 個裝置 · 最低 xx%"  ·  "更新於 HH:mm:ss" -->
+        <Grid ColumnDefinitions="*,Auto" Margin="4,2,4,0">
+            <TextBlock Grid.Column="0" Classes="subtitle" FontWeight="SemiBold" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                       Text="{Binding HeaderText}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Classes="caption" TextWrapping="NoWrap" Text="{Binding UpdatedText}" VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- Device cards -->
+        <ItemsControl ItemsSource="{Binding Devices}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Spacing="10" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DeviceItemViewModel">
+                    <Border Classes="card" Padding="14,12"
+                            Opacity="{Binding IsConnected, Converter={x:Static conv:BoolToOpacityConverter.Instance}}">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+
+                            <!-- Kind icon in a tinted tile -->
+                            <Border Grid.Column="0" Classes="tile"
+                                    Background="{Binding LevelTone, Converter={x:Static conv:ToneToBrushConverter.Instance}, ConverterParameter=tint}">
+                                <PathIcon Data="{Binding KindIcon}" Width="22" Height="22"
+                                          Foreground="{Binding LevelTone, Converter={x:Static conv:ToneToBrushConverter.Instance}}" />
+                            </Border>
+
+                            <!-- Name + chips -->
+                            <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center" Spacing="5">
+                                <TextBlock Classes="title" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                           Text="{Binding Name}" ToolTip.Tip="{Binding Name}" />
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="5" LineSpacing="4">
+                                    <controls:StatPill Tone="Neutral" Icon="{Binding ConnectionIcon}" Text="{Binding Detail}" />
+                                    <controls:StatPill Tone="{Binding StatusTone}" Text="{Binding StatusText}" />
+                                </WrapPanel>
+                            </StackPanel>
+
+                            <!-- Ring with percent + charging badge -->
+                            <Panel Grid.Column="2" Width="56" Height="56" VerticalAlignment="Center">
+                                <controls:RingGauge Width="54" Height="54" Thickness="6" ColorMode="Battery"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                    Value="{Binding RingValue}"
+                                                    IsCharging="{Binding IsCharging}"
+                                                    IsIndeterminate="{Binding !HasPercent}">
+                                    <TextBlock FontSize="13" FontWeight="Bold" TextWrapping="NoWrap" Text="{Binding PercentText}" />
+                                </controls:RingGauge>
+                                <Border Width="18" Height="18" CornerRadius="9"
+                                        HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                        Background="{DynamicResource BccAccentBrush}"
+                                        BorderBrush="{DynamicResource BccCardBrush}" BorderThickness="2"
+                                        IsVisible="{Binding IsCharging}">
+                                    <PathIcon Data="{StaticResource IconBolt}" Width="9" Height="9" Foreground="{DynamicResource BccOnAccentBrush}" />
+                                </Border>
+                            </Panel>
+
+                            <!-- "…" menu -->
+                            <Button Grid.Column="3" Classes="icon" Width="28" Height="28" Margin="4,0,-6,0" VerticalAlignment="Center"
+                                    ToolTip.Tip="{x:Static loc:Strings.HideDevice}">
+                                <PathIcon Data="{StaticResource IconMore}" Width="15" Height="15" />
+                                <Button.Flyout>
+                                    <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                        <MenuItem Header="{x:Static loc:Strings.HideDevice}" Command="{Binding HideCommand}">
+                                            <MenuItem.Icon>
+                                                <PathIcon Data="{StaticResource IconEye}" Width="14" Height="14" />
+                                            </MenuItem.Icon>
+                                        </MenuItem>
+                                    </MenuFlyout>
+                                </Button.Flyout>
+                            </Button>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Empty state -->
+        <Border Classes="card" MinHeight="240" IsVisible="{Binding IsEmpty}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" Margin="8">
+                <Border Classes="tile" Width="60" Height="60" CornerRadius="18" Background="{DynamicResource BccAccentTintBrush}">
+                    <PathIcon Data="{StaticResource IconDevice}" Width="28" Height="28" Foreground="{DynamicResource BccAccentBrush}" />
+                </Border>
+                <TextBlock Classes="title" HorizontalAlignment="Center" TextAlignment="Center" Text="{x:Static loc:Strings.DevicesEmptyTitle}" />
+                <StackPanel Spacing="4" HorizontalAlignment="Center">
+                    <TextBlock Classes="caption" TextAlignment="Center" Text="{x:Static loc:Strings.DevicesEmptyHintBluetooth}" />
+                    <TextBlock Classes="caption" TextAlignment="Center" Text="{x:Static loc:Strings.DevicesEmptyHintLogitech}" />
+                    <TextBlock Classes="caption" TextAlignment="Center" Text="{x:Static loc:Strings.DevicesEmptyHintOther}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Footer: show hidden devices -->
+        <Button Classes="link" HorizontalAlignment="Center" Command="{Binding ShowHiddenCommand}" IsVisible="{Binding HasHidden}">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+                <PathIcon Data="{StaticResource IconEye}" Width="13" Height="13" Foreground="{DynamicResource BccAccentBrush}" />
+                <TextBlock Text="{Binding ShowHiddenText}" Foreground="{DynamicResource BccAccentBrush}" FontSize="12" TextWrapping="NoWrap" />
+            </StackPanel>
+        </Button>
+    </StackPanel>
+</UserControl>

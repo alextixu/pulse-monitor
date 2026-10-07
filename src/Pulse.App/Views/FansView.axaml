@@ -1,0 +1,104 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Pulse.App.ViewModels"
+             xmlns:loc="using:Pulse.App.Localization"
+             xmlns:conv="using:Pulse.App.Converters"
+             xmlns:controls="using:Pulse.App.Controls"
+             x:Class="Pulse.App.Views.FansView"
+             x:DataType="vm:FansViewModel">
+
+    <StackPanel Spacing="12">
+
+        <!-- Banner: not elevated / no fan control -->
+        <Border Classes="banner warning" IsVisible="{Binding ShowBanner}">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <PathIcon Grid.Column="0" Data="{StaticResource IconShield}" Width="16" Height="16" Margin="0,0,10,0"
+                          Foreground="{DynamicResource BccWarningBrush}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,10,0" Text="{Binding BannerText}" />
+                <Button Grid.Column="2" Classes="pill" Padding="12,6" MinHeight="30" VerticalAlignment="Center"
+                        Command="{Binding ElevateCommand}" Content="{x:Static loc:Strings.ElevateShort}" IsVisible="{Binding ShowElevate}" />
+            </Grid>
+        </Border>
+
+        <!-- Empty state -->
+        <Border Classes="card" MinHeight="220" IsVisible="{Binding IsEmpty}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" Margin="8">
+                <Border Classes="tile" Width="60" Height="60" CornerRadius="18" Background="{DynamicResource BccTealTintBrush}">
+                    <PathIcon Data="{StaticResource IconFan}" Width="28" Height="28" Foreground="{DynamicResource BccTealBrush}" />
+                </Border>
+                <TextBlock Classes="title" HorizontalAlignment="Center" Text="{x:Static loc:Strings.NoFans}" />
+                <TextBlock Classes="caption" TextAlignment="Center" Text="{Binding EmptyHint}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Groups -->
+        <ItemsControl ItemsSource="{Binding Groups}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Spacing="14" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:FanGroupViewModel">
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="caption" FontWeight="SemiBold" Margin="6,0,0,0" Text="{Binding Name}" />
+                        <ItemsControl ItemsSource="{Binding Fans}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="10" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:FanItemViewModel">
+                                    <Border Classes="card">
+                                        <StackPanel Spacing="12">
+                                            <!-- Header: icon, name + chips, RPM -->
+                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                <Border Grid.Column="0" Classes="tile" Background="{DynamicResource BccTealTintBrush}">
+                                                    <PathIcon Data="{StaticResource IconFan}" Width="22" Height="22" Foreground="{DynamicResource BccTealBrush}" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1" Margin="12,0,10,0" VerticalAlignment="Center" Spacing="5">
+                                                    <TextBlock Classes="title" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Text="{Binding Name}" ToolTip.Tip="{Binding Name}" />
+                                                    <WrapPanel Orientation="Horizontal" ItemSpacing="5" LineSpacing="4">
+                                                        <controls:StatPill Tone="{Binding DutyTone}" Text="{Binding PercentText}" IsVisible="{Binding HasPercent}" />
+                                                        <controls:StatPill Tone="Neutral" Text="{x:Static loc:Strings.FanMonitorOnly}" IsVisible="{Binding IsMonitorOnly}" />
+                                                        <controls:StatPill Tone="Accent" Text="{x:Static loc:Strings.FanManualChip}" IsVisible="{Binding IsManual}" />
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="2" Classes="value-sm" FontSize="18" TextWrapping="NoWrap" VerticalAlignment="Center" Text="{Binding RpmText}" />
+                                            </Grid>
+
+                                            <!-- Controls -->
+                                            <StackPanel Spacing="8" IsVisible="{Binding CanControl}">
+                                                <Border Classes="divider" />
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Grid.Column="0" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Text="{x:Static loc:Strings.FanManualControl}" />
+                                                    <ToggleSwitch Grid.Column="1" Classes="plain" IsChecked="{Binding IsManual, Mode=TwoWay}" VerticalAlignment="Center" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="*,Auto" IsEnabled="{Binding IsManual}">
+                                                    <Slider Grid.Column="0" Minimum="{Binding MinPercent}" Maximum="{Binding MaxPercent}" TickFrequency="5" IsSnapToTickEnabled="True"
+                                                            Value="{Binding SliderValue, Mode=TwoWay}" />
+                                                    <TextBlock Grid.Column="1" Classes="value-sm" FontSize="14" Width="44" TextAlignment="Right" VerticalAlignment="Center" TextWrapping="NoWrap" Text="{Binding SliderText}" />
+                                                </Grid>
+                                                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6">
+                                                    <Button Classes="chip" Command="{Binding PresetCommand}" CommandParameter="{x:Static vm:FanPresets.Quiet}" Content="{x:Static loc:Strings.FanPresetQuietLabel}" />
+                                                    <Button Classes="chip" Command="{Binding PresetCommand}" CommandParameter="{x:Static vm:FanPresets.Balanced}" Content="{x:Static loc:Strings.FanPresetBalancedLabel}" />
+                                                    <Button Classes="chip" Command="{Binding PresetCommand}" CommandParameter="{x:Static vm:FanPresets.Performance}" Content="{x:Static loc:Strings.FanPresetPerformanceLabel}" />
+                                                    <Button Classes="chip" Command="{Binding PresetCommand}" CommandParameter="{x:Static vm:FanPresets.Full}" Content="{x:Static loc:Strings.FanPresetFullLabel}" />
+                                                </WrapPanel>
+                                                <TextBlock Classes="caption warning" FontSize="11" Text="{x:Static loc:Strings.FanManualWarning}" IsVisible="{Binding IsManual}" />
+                                            </StackPanel>
+
+                                            <ProgressBar IsIndeterminate="True" Height="3" Classes="rounded" IsVisible="{Binding IsBusy}" />
+                                            <TextBlock Classes="caption danger" Text="{Binding Error}" IsVisible="{Binding HasError}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

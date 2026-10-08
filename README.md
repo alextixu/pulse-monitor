@@ -24,7 +24,9 @@
   - [CPU / GPU / 風扇](#4-cpu--gpu--風扇librehardwaremonitor)
     - [風扇模式](#風扇模式)
   - [RGB 燈光](#5-rgb-燈光openrgb-sdk)
-  - [托盤與介面](#6-托盤與介面avalonia)
+    - [內建 OpenRGB](#內建-openrgb)
+  - [每秒硬體記錄](#6-每秒硬體記錄)
+  - [托盤與介面](#7-托盤與介面avalonia)
 - [專案結構](#專案結構)
 - [已知限制](#已知限制)
 - [規劃](#規劃)
@@ -40,7 +42,8 @@
 | **系統** | CPU 使用率（含每個邏輯核心）、Package 溫度、時脈、功耗；每張 GPU 的使用率、核心 / 熱點溫度、VRAM、風扇、功耗、時脈；記憶體；主機板其他溫度 |
 | **燈光** | 透過 OpenRGB 控制主機板、記憶體、顯示卡、鍵鼠等 RGB：一鍵全部套色、每個裝置的模式 / 顏色 / 速度 / 分區顏色；**關燈**（單一裝置或全部）與**還原預設**（回到 Pulse 第一次偵測到裝置時的燈光狀態） |
 | **風扇** | 依主機板 / 顯示卡分組列出風扇轉速（沒接風扇的接頭自動隱藏）；四種**風扇模式**：**自動**（全部交回 BIOS / 驅動）、**靜音**（依 CPU / GPU 溫度的低噪音曲線，過熱自動交回 BIOS）、**全部同步**（所有風扇同一轉速）、**個別**（每個風扇手動模式、滑桿與「靜音 / 平衡 / 效能 / 全速」預設）。水冷泵會被自動排除 |
-| **設定** | 主題、開機自動啟動、啟動時自動提權、托盤圖示顯示內容、更新頻率、OpenRGB 主機 / 連接埠、低電量提醒門檻 |
+| **設定** | 主題、開機自動啟動、啟動時自動提權、托盤圖示顯示內容、更新頻率、OpenRGB 主機 / 連接埠與「使用內建 OpenRGB」、低電量提醒門檻、每秒硬體記錄 |
+| **硬體記錄** | 每秒把 CPU / GPU / 記憶體的使用率、溫度、功耗、時脈，以及每個風扇的轉速與控制狀態寫成 CSV（`%LOCALAPPDATA%\Pulse\logs\telemetry.csv`，可用 Excel 開啟），**每小時清除一次**並保留前一小時（`telemetry-previous.csv`） |
 
 托盤圖示本身也是即時資訊：預設顯示**最低的裝置電量**（顏色依電量變化），也可改為 CPU 溫度、GPU 溫度或 CPU 使用率；滑鼠停在圖示上會列出所有裝置與 CPU / GPU 摘要。
 
@@ -98,7 +101,7 @@
 | 作業系統 | Windows 10 1809+ / Windows 11 |
 | 執行階段 | [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)（建置）或 .NET 9 Desktop Runtime（只執行） |
 | CPU 溫度 / 風扇控制 | **以系統管理員身分執行**，並安裝 [PawnIO](https://pawnio.eu) 核心驅動。**所有**風扇控制（包含顯示卡風扇）都需要系統管理員權限 |
-| RGB 燈光 | 安裝 [OpenRGB](https://openrgb.org/releases.html)，在「設定 › SDK Server」啟用（或以 `OpenRGB.exe --server --startminimized` 啟動） |
+| RGB 燈光 | Pulse 發行版**內附 OpenRGB**：沒有 OpenRGB 在執行時會自動在背景啟動，不必另外安裝。已經自己裝了 OpenRGB 並開著 SDK Server 也可以，Pulse 會直接連上它。記憶體、顯示卡等走 SMBus 的燈光需要以系統管理員身分執行 |
 | Logitech / ASUS 電量 | 透過接收器或 USB 連接即可，可與 G HUB 同時執行 |
 
 ### 執行
@@ -121,13 +124,18 @@ cd pulse-monitor
 | `--screenshot <資料夾>` | 把五個分頁（淺色 + 深色）與風扇三種模式輸出成 PNG 後結束（示範資料，設定只存在記憶體） |
 | `--quit` | 通知正在執行的 Pulse 正常結束（會先把風扇交回自動）並等它結束；不要用工作管理員強制結束改過風扇的 Pulse |
 
-發行成單一資料夾：
+發行成單一資料夾（含內建 OpenRGB）：
 
 ```powershell
+.\tools\fetch-openrgb.ps1        # 把 OpenRGB 放到 third_party\OpenRGB（預設從 C:\Program Files\OpenRGB 複製；或 -ZipUrl 下載官方 zip）
 dotnet publish src\Pulse.App -c Release -r win-x64 --self-contained false -o publish\win-x64
 ```
 
-設定檔在 `%APPDATA%\Pulse\settings.json`，記錄檔在 `%LOCALAPPDATA%\Pulse\logs\app.log`。
+`third_party\OpenRGB\` 不進 git；有這個資料夾時，建置與發行會自動把它連同 `NOTICE.md`、`LICENSE-GPL-2.0.txt` 放到輸出資料夾的 `OpenRGB\`。沒有的話 Pulse 照常建置，只是不附帶 OpenRGB。
+
+設定檔在 `%APPDATA%\Pulse\settings.json`，記錄檔在 `%LOCALAPPDATA%\Pulse\logs\app.log`，每秒硬體記錄在 `%LOCALAPPDATA%\Pulse\logs\telemetry.csv`。
+
+> 記憶體吃緊時（例如一邊玩遊戲一邊建置），Avalonia 的 XAML 編譯器可能出現 OutOfMemory。改用單一行程建置：`dotnet build Pulse.sln -m:1 -nodeReuse:false`。
 
 ---
 
@@ -158,7 +166,7 @@ flowchart LR
 
 - **`Pulse.Core`** 只定義契約：`IBatteryProvider`（回傳 `BatteryDevice` 清單）、`IHardwareMonitor`（`HardwareSnapshot` + `SetFanAsync`）、`IRgbController`，以及設定、提權、開機啟動等平台服務。UI 完全不知道資料從哪來。
 - 每個資料來源是獨立類別庫，透過 `AddXxx()` 擴充方法註冊到 DI；非 Windows 平台或缺少的服務自動以 `Null*` 實作補上，所以介面在任何平台都能啟動。
-- **`MonitoringService`** 以兩個 `PeriodicTimer` 分別輪詢電量（預設 30 秒，面板打開時立即刷新）與硬體（預設 2 秒）。所有 provider 都在執行緒集區執行、各自錯誤隔離（一個 provider 失敗不影響其他），結果再以 `Dispatcher.UIThread.Post` 切回 UI 執行緒發佈。
+- **`MonitoringService`** 以兩個 `PeriodicTimer` 分別輪詢電量（預設 30 秒，面板打開時立即刷新）與硬體（預設 2 秒；開啟每秒硬體記錄時為 1 秒）。所有 provider 都在執行緒集區執行、各自錯誤隔離（一個 provider 失敗不影響其他），結果再以 `Dispatcher.UIThread.Post` 切回 UI 執行緒發佈。
 - `--demo` 會把所有 provider 換成假資料實作，用來開發介面與產生截圖。
 
 ### 1. 藍牙裝置電量（Windows）
@@ -222,15 +230,16 @@ ROG 無線鍵盤（如 Falchion）的 2.4 GHz 接收器會提供一個廠商 HID
 
 **切換模式或把風扇排除出群組時，一律先把受影響的風扇交回韌體，再套用新模式。**
 
-**靜音曲線**（溫度來源：顯示卡風扇用該顯示卡的核心溫度，其他風扇用 CPU Package 溫度）：
+**靜音曲線**（溫度來源：顯示卡風扇用該顯示卡的核心溫度，其他風扇用 CPU Package 溫度；CPU 在 80 °C 以下都維持低轉速）：
 
-| 溫度 | 轉速 |
-|---|---|
-| ≤ 50 °C | 最低轉速 = max(風扇最小值, 主機板 35 % / 顯示卡 30 %) |
-| 50–70 °C | 從最低轉速線性增加到 60 %（例如 60 °C → 47.5 %） |
-| 70–75 °C | 60 % |
-| **≥ 75 °C** | **立即交回韌體自動控制**，直到溫度降到 **≤ 68 °C** 才恢復曲線（遲滯，避免來回切換） |
-| 讀不到溫度 | 交回韌體自動控制（同樣要降到 68 °C 以下才恢復） |
+| | 主機板風扇（依 CPU Package 溫度） | 顯示卡風扇（依 GPU 核心溫度） |
+|---|---|---|
+| 最低轉速 | max(風扇最小值, 35 %)，**≤ 75 °C** 都維持 | max(風扇最小值, 30 %)，≤ 50 °C |
+| 緩升 | 75–80 °C 線性升到 50 % | 50–70 °C 線性升到 60 %（70–75 °C 維持 60 %） |
+| **交回自動** | **≥ 80 °C** 立即交回 BIOS，降到 **≤ 72 °C** 才恢復 | **≥ 75 °C** 立即交回驅動，降到 **≤ 68 °C** 才恢復 |
+| 讀不到溫度 | 交回自動控制 | 交回自動控制 |
+
+（交回與恢復之間的溫差是遲滯，避免在門檻附近來回切換。）
 
 為了不讓風扇忽快忽慢，靜音模式只在新轉速與上次寫入相差 ≥ 3 % 時才寫入，且每個風扇最多每 4 秒寫一次；交回韌體則永遠立即執行。
 
@@ -258,7 +267,29 @@ ROG 無線鍵盤（如 Falchion）的 2.4 GHz 接收器會提供一個廠商 HID
 - 用戶端是 [OpenRGB.NET](https://github.com/diogotr7/OpenRGB.NET) 3.1.1。實測發現 OpenRGB 關閉後，這個函式庫的 `Connected` 屬性仍會維持 `true`，而且讀取迴圈會讓一個 CPU 核心空轉到 100 %。所以 Pulse 會每 2 秒以及每次呼叫前直接檢查底層 socket（`OpenRgbClientProbe`），一旦發現斷線就丟棄用戶端並在介面上提示。
 - 每個操作都有逾時與取消機制，並以 `SemaphoreSlim` 序列化；連不上時面板會顯示安裝與啟用 SDK Server 的步驟。
 
-### 6. 托盤與介面（Avalonia）
+#### 內建 OpenRGB
+
+OpenRGB 支援數百種裝置，而記憶體、顯示卡燈光要經過 SMBus / I²C，自己重寫風險很高，所以 Pulse 選擇**隨附 OpenRGB 並把它當成背景服務**，而不是複製它的程式碼：
+
+1. 連線前（`MonitoringService.ConnectRgbAsync`），`OpenRgbServerLauncher` 先試連 SDK 埠。已經有 OpenRGB 在聽（使用者自己開的）就直接使用，Pulse 不會去關它。
+2. 沒有的話，且「使用內建 OpenRGB」開著、主機是本機，就啟動 `<Pulse 資料夾>\OpenRGB\OpenRGB.exe --server --server-port 6742 --noautoconnect`：只開 SDK 伺服器、沒有視窗，等埠開啟（最多 30 秒）後再連線。
+3. OpenRGB 會先開埠、再慢慢偵測裝置，所以 Pulse 在之後 30 秒內每 2 秒重讀一次裝置清單，數量有變就更新燈光分頁。
+4. Pulse 以 **Job Object（kill-on-close）** 綁住這個 OpenRGB：Pulse 正常結束時主動關掉它；就算 Pulse 被強制結束或當機，Windows 也會一併結束它，不會殘留在背景。
+5. 子程序繼承 Pulse 的權限：以系統管理員身分執行時，OpenRGB 才能經由 PawnIO 存取 SMBus（記憶體燈光）。
+
+授權：OpenRGB 是 GPL-2.0，Pulse 是 MIT。兩者是獨立程式、只透過 TCP 溝通，沒有互相連結，所以可以一起散佈；發行資料夾的 `OpenRGB\` 內附 `NOTICE.md`（作者、原始碼位置）、`LICENSE-GPL-2.0.txt` 與 `SOURCE.txt`（這份副本的來源與 SHA-256）。
+
+### 6. 每秒硬體記錄
+
+`TelemetryLogger` 訂閱每次硬體快照（開啟記錄時硬體每秒輪詢一次），把一行 CSV 放進有上限的佇列，由背景執行緒寫檔，不會卡住介面：
+
+- 欄位：時間、硬體狀態、風扇模式、CPU 使用率 / 溫度 / 最高核心溫度 / 時脈 / 功耗、每張 GPU 的使用率 / 溫度 / 熱點 / 顯存溫度 / 功耗 / 時脈 / 顯存用量、記憶體用量，以及每個**偵測到的**風扇（轉速、工作週期、風扇模式狀態）與主機板其他溫度。
+- 欄位在檔案開始時決定：先收集 4 筆樣本，等「沒接風扇的接頭」判定完成再寫表頭，所以不會出現永遠是 0 的風扇欄位。
+- **每到整點清除**：目前的檔案改名為 `telemetry-previous.csv`（覆蓋更早的那份），再開新檔；每次啟動 Pulse 也會先把舊檔移過去。磁碟上最多約兩小時的資料。
+- 檔案是 UTF-8（含 BOM），Excel 開啟中文欄位名稱不會亂碼；寫入時允許其他程式同時讀取。
+- 示範模式不寫入。設定 › 硬體記錄可以關閉，關閉後硬體輪詢回到「更新頻率」的設定值。
+
+### 7. 托盤與介面（Avalonia）
 
 - **UI 框架**：[Avalonia 11](https://avaloniaui.net)（跨平台 XAML），搭配 Fluent 主題，MVVM 使用 CommunityToolkit.Mvvm 的 source generator（`[ObservableProperty]`、`[RelayCommand]`），並開啟 compiled bindings。
 - **托盤圖示**：以 SkiaSharp 在記憶體中繪製 32 × 32 圖示（彩色圓環加上數字，或電池圖示），編碼成 PNG 後交給 Avalonia 的 `TrayIcon`，因此不需要任何視窗也能更新。
@@ -277,15 +308,18 @@ src/
   Pulse.Logitech/  HID++ 1.0 / 2.0 電量（HidSharp）
   Pulse.Asus/      ASUS ROG / TUF 周邊電量（HidSharp）
   Pulse.Hardware/  LibreHardwareMonitor：CPU / GPU / 記憶體 / 風扇與風扇控制
-  Pulse.Rgb/       OpenRGB SDK 用戶端與斷線偵測
+  Pulse.Rgb/       OpenRGB SDK 用戶端、斷線偵測、內建 OpenRGB 啟動器
   Pulse.App/       Avalonia 托盤應用
     Views/         彈出面板與五個分頁
     ViewModels/    MVVM
-    Services/      MonitoringService、托盤、設定、記錄、截圖
+    Services/      MonitoringService、FanModeService、TelemetryLogger、托盤、設定、記錄、截圖
     Controls/      RingGauge、StatPill
     Styles/        主題色彩、控制項樣式、圖示（StreamGeometry）
     Demo/          示範資料
-docs/screenshots/  介面截圖
+tools/fetch-openrgb.ps1        準備要隨附的 OpenRGB（third_party\OpenRGB，不進 git）
+third_party/OpenRGB-NOTICE.md  OpenRGB 的作者、授權與原始碼說明
+licenses/GPL-2.0.txt           OpenRGB 的授權全文
+docs/screenshots/              介面截圖
 run.ps1 / run-admin.ps1
 ```
 
@@ -294,6 +328,7 @@ run.ps1 / run-admin.ps1
 - Windows 對藍牙裝置只提供電量百分比，沒有充電狀態；不回報電量的裝置（例如 A2DP 音響）只會顯示名稱。
 - ASUS ROG：Falchion（2.4 GHz）已經實機驗證；其他 ROG 鍵盤 / 滑鼠屬於盡力支援，因為各型號的電量位置可能不同。
 - OpenRGB.NET 3.1.1 無法設定「亮度」，介面上已標示；同樣的原因，「還原預設」也無法還原亮度與顏色模式（固定 / 隨機）。
+- **OpenRGB 1.0 會忽略 OpenRGB.NET 3.1.1 送出的 `UPDATEMODE` 封包**（新版伺服器檢查封包內的長度欄位，舊用戶端的值不符就丟棄）。因此在 OpenRGB 1.0 上，「切換模式」、「還原成 Rainbow 等韌體燈效」、以及對有 `Off` 模式的裝置「關燈」不會生效；改顏色（Direct + `UPDATELEDS`）正常。實測 `SETCUSTOMMODE` + 全黑 LED 可以關燈。尚未修正。
 - 風扇設定（包括各種模式）只在 Pulse 執行期間有效，結束時交回韌體；「全部同步」會把被其他軟體（Armoury Crate、Afterburner）改掉的轉速改回來，其他模式不會偵測。
 - 風扇控制需要系統管理員權限；被強制結束時主機板風扇要重新開機才會恢復 BIOS 曲線。
 - 低電量提醒顯示在面板內，不是 Windows 系統通知。
@@ -310,5 +345,7 @@ run.ps1 / run-admin.ps1
 ## 授權
 
 [MIT](LICENSE)
+
+發行版隨附的 OpenRGB 是獨立程式，採 [GPL-2.0](licenses/GPL-2.0.txt) 授權，說明見 [third_party/OpenRGB-NOTICE.md](third_party/OpenRGB-NOTICE.md)。
 
 使用的開源專案：[Avalonia](https://github.com/AvaloniaUI/Avalonia)、[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)、[HidSharp](https://www.zer7.com/software/hidsharp)、[OpenRGB.NET](https://github.com/diogotr7/OpenRGB.NET)、[CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet)。HID++ 協定的細節參考自 [Solaar](https://github.com/pwr-Solaar/Solaar)，ASUS 協定參考自 [OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB)。

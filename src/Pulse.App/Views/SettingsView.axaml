@@ -118,6 +118,15 @@
                 </Grid>
                 <Border Classes="divider" />
 
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingUseBundledOpenRgb}" />
+                        <TextBlock Classes="caption" Text="{Binding BundledOpenRgbHint}" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" Classes="plain" IsChecked="{Binding UseBundledOpenRgb, Mode=TwoWay}" />
+                </Grid>
+                <Border Classes="divider" />
+
                 <Grid ColumnDefinitions="Auto,*" Margin="0,4,0,0">
                     <Button Grid.Column="0" Classes="pill" Command="{Binding TestConnectionCommand}" Content="{x:Static loc:Strings.TestConnection}" />
                     <TextBlock Grid.Column="1" Classes="caption" Margin="10,0,0,0" VerticalAlignment="Center" Text="{Binding TestResultText}"

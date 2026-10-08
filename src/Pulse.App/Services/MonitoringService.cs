@@ -1,6 +1,7 @@
 using Avalonia.Threading;
 using Pulse.Core.Abstractions;
 using Pulse.Core.Models;
+using Pulse.Rgb;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 
@@ -58,6 +59,8 @@ public sealed partial class MonitoringService : ObservableObject, IDisposable
     private readonly IReadOnlyList<IBatteryProvider> _providers;
     private readonly IHardwareMonitor _hardware;
     private readonly IRgbController _rgb;
+    /// <summary>Null in demo mode (and wherever the OpenRGB backend is not registered).</summary>
+    private readonly OpenRgbServerLauncher? _openRgbLauncher;
     private readonly AppSettings _settings;
     private readonly ILogger<MonitoringService> _log;
     private readonly CancellationTokenSource _cts = new();
@@ -93,13 +96,15 @@ public sealed partial class MonitoringService : ObservableObject, IDisposable
         IHardwareMonitor hardware,
         IRgbController rgb,
         AppSettings settings,
-        ILogger<MonitoringService> log)
+        ILogger<MonitoringService> log,
+        OpenRgbServerLauncher? openRgbLauncher = null)
     {
         _providers = providers.Where(p => p.IsSupported).ToList();
         _hardware = hardware;
         _rgb = rgb;
         _settings = settings;
         _log = log;
+        _openRgbLauncher = openRgbLauncher;
         _hardwareStatus = hardware.Status;
         _rgbStatus = rgb.Status;
 
@@ -155,14 +160,29 @@ public sealed partial class MonitoringService : ObservableObject, IDisposable
         _ = RefreshBatteriesAsync(waitIfBusy: false, _cts.Token);
     }
 
-    /// <summary>(Re)configures the RGB endpoint from settings and connects. Safe to call repeatedly.</summary>
+    /// <summary>Raised on the UI thread when the RGB device list changed without a reconnect (bundled OpenRGB finished detecting).</summary>
+    public event EventHandler? RgbDevicesChanged;
+
+    /// <summary>
+    /// (Re)configures the RGB endpoint from settings and connects. Safe to call repeatedly. When nothing answers on the
+    /// SDK port and <see cref="AppSettings.UseBundledOpenRgb"/> is on, the OpenRGB shipped with Pulse is started first.
+    /// </summary>
     public async Task<bool> ConnectRgbAsync(CancellationToken cancellationToken = default)
     {
         try
         {
+            var launched = false;
+            if (_openRgbLauncher is not null && _settings.UseBundledOpenRgb)
+            {
+                var launch = await _openRgbLauncher.EnsureRunningAsync(_settings.OpenRgbHost, _settings.OpenRgbPort, cancellationToken).ConfigureAwait(false);
+                launched = launch == OpenRgbLaunchResult.Started;
+                _log.LogInformation("Bundled OpenRGB: {Result} (bundled copy present: {Bundled})", launch, OpenRgbServerLauncher.IsBundled);
+            }
+
             _rgb.Configure(_settings.OpenRgbHost, _settings.OpenRgbPort);
             var ok = await Task.Run(() => _rgb.ConnectAsync(cancellationToken), cancellationToken).ConfigureAwait(false);
             _log.LogInformation("RGB connect to {Host}:{Port} → {Result}", _settings.OpenRgbHost, _settings.OpenRgbPort, ok ? "connected" : _rgb.Status.Message);
+            if (ok && launched) _ = WatchDeviceDetectionAsync(cancellationToken);
             return ok;
         }
         catch (OperationCanceledException)
@@ -173,6 +193,34 @@ public sealed partial class MonitoringService : ObservableObject, IDisposable
         {
             _log.LogWarning(ex, "RGB connect failed");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// A freshly started OpenRGB opens its SDK port before it has finished detecting devices, so the first list can be
+    /// short. Re-read it for up to 30 s and tell the UI whenever it grows or shrinks.
+    /// </summary>
+    private async Task WatchDeviceDetectionAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var last = (await _rgb.GetDevicesAsync(refresh: false, cancellationToken).ConfigureAwait(false)).Count;
+            for (var i = 0; i < 15 && !cancellationToken.IsCancellationRequested; i++)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
+                var count = (await _rgb.GetDevicesAsync(refresh: true, cancellationToken).ConfigureAwait(false)).Count;
+                if (count == last) continue;
+                _log.LogInformation("Bundled OpenRGB detection: {Count} RGB device(s)", count);
+                last = count;
+                Post(() => RgbDevicesChanged?.Invoke(this, EventArgs.Empty));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Watching OpenRGB device detection failed");
         }
     }
 

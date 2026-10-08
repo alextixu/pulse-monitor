@@ -224,6 +224,23 @@ public sealed partial class SettingsViewModel : TabViewModelBase
         }
     }
 
+    public bool UseBundledOpenRgb
+    {
+        get => S.UseBundledOpenRgb;
+        set
+        {
+            if (S.UseBundledOpenRgb == value) return;
+            S.UseBundledOpenRgb = value;
+            OnPropertyChanged();
+            Settings.NotifyChanged(nameof(AppSettings.UseBundledOpenRgb));
+        }
+    }
+
+    /// <summary>Whether an OpenRGB copy ships next to Pulse.exe (otherwise the toggle has nothing to start).</summary>
+    public string BundledOpenRgbHint => Pulse.Rgb.OpenRgbServerLauncher.IsBundled
+        ? Strings.SettingBundledOpenRgbPresent
+        : Strings.SettingBundledOpenRgbMissing;
+
     // ---- 通知 ----
 
     public bool NotifyOnLowBattery

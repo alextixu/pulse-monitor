@@ -13,3 +13,6 @@ publish/
 
 ## App data / logs
 *.log
+
+## Bundled third-party binaries (prepared by tools/fetch-openrgb.ps1)
+third_party/OpenRGB/

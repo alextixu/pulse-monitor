@@ -53,6 +53,7 @@ public sealed partial class LightingViewModel : TabViewModelBase
         _log = log;
         Presets = PresetHexes.Select(h => new ColorSwatchItem(RgbColor.FromHex(h), ApplyToAllCommand)).ToList();
         Monitoring.PropertyChanged += OnMonitoringPropertyChanged;
+        Monitoring.RgbDevicesChanged += (_, _) => { if (IsConnected) _ = LoadDevicesAsync(); };
         ApplyStatus(Monitoring.RgbStatus);
     }
 

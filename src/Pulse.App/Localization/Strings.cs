@@ -129,6 +129,9 @@ public static class Strings
     public const string SettingOpenRgbHost = "主機";
     public const string SettingOpenRgbPort = "連接埠";
     public const string SettingAutoConnectOpenRgb = "啟動時自動連線";
+    public const string SettingUseBundledOpenRgb = "使用內建 OpenRGB";
+    public const string SettingBundledOpenRgbPresent = "沒有在執行的 OpenRGB 時，Pulse 會在背景啟動內建的 OpenRGB，結束時一起關閉。以系統管理員身分執行才能控制記憶體等 SMBus 燈光。";
+    public const string SettingBundledOpenRgbMissing = "這個版本沒有附帶 OpenRGB（建置前執行 tools\\fetch-openrgb.ps1），請自行安裝 OpenRGB。";
     public const string SettingNotifyLowBattery = "電量低時通知";
     public const string SettingLowBatteryThreshold = "低電量門檻（%）";
     public const string SettingsSaved = "設定已儲存";

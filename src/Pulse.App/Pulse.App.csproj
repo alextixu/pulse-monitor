@@ -16,6 +16,17 @@
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 
+  <!-- Bundled OpenRGB (GPL-2.0, separate program): prepared by tools\fetch-openrgb.ps1, never committed.
+       Copied to <output>\OpenRGB\ together with its notice and license when present. -->
+  <PropertyGroup>
+    <BundledOpenRgbDir>$(MSBuildThisFileDirectory)..\..\third_party\OpenRGB\</BundledOpenRgbDir>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(BundledOpenRgbDir)OpenRGB.exe')">
+    <None Include="$(BundledOpenRgbDir)**\*" LinkBase="OpenRGB" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\third_party\OpenRGB-NOTICE.md" Link="OpenRGB\NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\licenses\GPL-2.0.txt" Link="OpenRGB\LICENSE-GPL-2.0.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.22" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />

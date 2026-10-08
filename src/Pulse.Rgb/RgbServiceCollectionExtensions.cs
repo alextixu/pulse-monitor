@@ -15,6 +15,8 @@ public static class RgbServiceCollectionExtensions
     {
         services.TryAddSingleton<OpenRgbController>();
         services.TryAddSingleton<IRgbController>(sp => sp.GetRequiredService<OpenRgbController>());
+        // Starts the OpenRGB copy shipped next to Pulse.exe when no SDK server is running; stops it on dispose.
+        services.TryAddSingleton<OpenRgbServerLauncher>();
         return services;
     }
 }

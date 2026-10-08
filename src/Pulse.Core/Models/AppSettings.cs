@@ -40,6 +40,8 @@ public sealed class AppSettings
     public string OpenRgbHost { get; set; } = "127.0.0.1";
     public int OpenRgbPort { get; set; } = 6742;
     public bool AutoConnectOpenRgb { get; set; } = true;
+    /// <summary>Start the OpenRGB shipped with Pulse when nothing answers on the SDK port (local host only).</summary>
+    public bool UseBundledOpenRgb { get; set; } = true;
 
     public bool StartWithSystem { get; set; }
     /// <summary>On Windows: re-launch elevated at startup so CPU temperature and fan control work without a manual step.</summary>

@@ -127,7 +127,7 @@ public sealed partial class FanModeService : ObservableObject, IDisposable
         var snapshot = _monitoring.LatestHardware;
         if (snapshot.Fans.Count == 0) return;
 
-        var request = new Request(snapshot, FanControlSettings.From(Settings), ControlAvailable, Presence.Capture());
+        var request = new Request(snapshot, FanControlSettings.From(Settings, _monitoring.HardwareStatus), ControlAvailable, Presence.Capture());
         lock (_queueGate)
         {
             _pending = request;

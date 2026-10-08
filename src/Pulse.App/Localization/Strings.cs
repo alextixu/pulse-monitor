@@ -263,6 +263,8 @@ public static class Strings
 
     public static string FanChipQuiet(double? percent) => $"靜音 {Percent(percent)}";
     public static string FanChipSynced(double? percent) => $"同步 {Percent(percent)}";
+    /// <summary>Orphaned fan: BIOS curve lost until reboot, Pulse drives it.</summary>
+    public static string FanChipStandIn(double? percent) => $"代管 {Percent(percent)}（重開機後恢復 BIOS）";
 
     // ---- Settings (part 2, extra) ----
     public const string SettingTrayIconDisplay = "系統匣圖示顯示";

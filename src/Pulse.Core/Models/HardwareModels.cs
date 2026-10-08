@@ -92,4 +92,11 @@ public sealed record HardwareMonitorStatus
 
     /// <summary>Set when the previous session ended without restoring fans it had put in manual mode (crash / forced kill).</summary>
     public string? RecoveryNotice { get; init; }
+
+    /// <summary>
+    /// Fans whose firmware (BIOS) curve cannot be restored until the next reboot: a previous Pulse was killed while it held
+    /// them, and Super I/O chips only restore the mode saved by the process that changed it. "Handing back" such a fan
+    /// would re-apply the stuck manual duty, so Pulse drives them with a stand-in curve instead.
+    /// </summary>
+    public IReadOnlyList<string> OrphanedFanIds { get; init; } = Array.Empty<string>();
 }

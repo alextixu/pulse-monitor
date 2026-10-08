@@ -13,12 +13,16 @@ public sealed record FanControlSettings
     public IReadOnlySet<string> ExcludedIds { get; init; } = new HashSet<string>();
     public IReadOnlySet<string> IncludedIds { get; init; } = new HashSet<string>();
 
-    public static FanControlSettings From(AppSettings s) => new()
+    /// <summary>Fans that must never be "handed back" (firmware curve lost until reboot); see <see cref="HardwareMonitorStatus.OrphanedFanIds"/>.</summary>
+    public IReadOnlySet<string> OrphanedIds { get; init; } = new HashSet<string>();
+
+    public static FanControlSettings From(AppSettings s, HardwareMonitorStatus? status = null) => new()
     {
         Mode = s.FanMode,
         SyncedPercent = s.SyncedFanPercent,
         ExcludedIds = new HashSet<string>(s.FanGroupExcludedIds ?? new List<string>(), StringComparer.Ordinal),
         IncludedIds = new HashSet<string>(s.FanGroupIncludedIds ?? new List<string>(), StringComparer.Ordinal),
+        OrphanedIds = new HashSet<string>(status?.OrphanedFanIds ?? Array.Empty<string>(), StringComparer.Ordinal),
     };
 }
 
@@ -39,6 +43,8 @@ public enum FanModeState
     NoTemperature,
     /// <summary>Not a group member (<see cref="FanModeFanStatus.Exclusion"/>).</summary>
     Excluded,
+    /// <summary>Orphaned fan (firmware curve lost until reboot): Pulse drives it with the stand-in curve.</summary>
+    StandIn,
     /// <summary>Header without a detected fan (hidden) or still in the detection grace period: never written.</summary>
     NotDetected,
     /// <summary>Monitor-only fan.</summary>
@@ -171,10 +177,14 @@ public sealed class FanModeController
                 // (At startup in 個別 mode there is nothing to hand back: the cards own their fans.)
                 if (_lastMode is not null || settings.Mode != FanMode.Individual)
                 {
-                    foreach (var id in _controlled.Keys) HandBack(id);
+                    // Orphaned fans are never handed back: that would re-apply their stuck duty. They stay driven below.
+                    foreach (var id in _controlled.Keys)
+                    {
+                        if (!settings.OrphanedIds.Contains(id)) HandBack(id);
+                    }
                     foreach (var fan in snapshot.Fans)
                     {
-                        if (fan.CanControl && fan.IsManual) HandBack(fan.Id);
+                        if (fan.CanControl && fan.IsManual && !settings.OrphanedIds.Contains(fan.Id)) HandBack(fan.Id);
                     }
                 }
                 _log.LogInformation("Fan mode {From} → {To} (handing back {Count} fan(s))",
@@ -197,14 +207,44 @@ public sealed class FanModeController
                     continue;
                 }
 
+                var exclusion = FanGroupPolicy.Evaluate(fan, presence.FirstSight(fan.Id), settings.ExcludedIds, settings.IncludedIds);
+                var orphaned = settings.OrphanedIds.Contains(fan.Id);
+
+                // Orphaned fans: wherever another fan would be left to (or handed back to) the firmware, drive the stand-in
+                // curve instead. Increases are written at once; decreases follow the usual 3 % / 4 s throttling.
+                FanModeFanStatus StandIn()
+                {
+                    var raw = isGpu ? GpuTempFor(fan, snapshot) : snapshot.Cpu?.PackageTempC;
+                    double? smoothed = raw is { } r && double.IsFinite(r) ? _smoother.Update(isGpu ? "gpu" : "cpu", r, now) : null;
+                    var pump = exclusion is FanExclusion.PumpName or FanExclusion.PumpLike;
+                    var emergency = raw is { } rr && rr >= QuietFanCurve.ProfileFor(isGpu).EmergencyC;
+                    var target = QuietFanCurve.ClampToFan(fan, emergency ? 100 : QuietFanCurve.StandInPercent(smoothed, pump));
+                    var shown = target;
+                    if (!_controlled.TryGetValue(fan.Id, out var last))
+                    {
+                        if (!RecentlyFailed(fan.Id, now)) writes.Add((fan.Id, target));
+                    }
+                    else if (target > last + 0.5 || (Math.Abs(target - last) >= QuietFanCurve.MinStepPercent && Elapsed(fan.Id, now)))
+                    {
+                        if (!RecentlyFailed(fan.Id, now)) writes.Add((fan.Id, target));
+                    }
+                    else
+                    {
+                        shown = last;
+                    }
+                    return Status(FanModeState.StandIn, shown, exclusion, smoothed);
+                }
+
                 if (settings.Mode == FanMode.Individual)
                 {
-                    statuses[fan.Id] = Status(FanModeState.Individual);
+                    // Per-fan manual cards are disabled for orphaned fans (the UI shows the stand-in state instead).
+                    statuses[fan.Id] = orphaned ? StandIn() : Status(FanModeState.Individual);
                     continue;
                 }
 
                 if (settings.Mode == FanMode.Auto)
                 {
+                    if (orphaned) { statuses[fan.Id] = StandIn(); continue; }
                     if (HeldByUs(fan.Id)) HandBack(fan.Id);
                     statuses[fan.Id] = Status(FanModeState.Auto);
                     continue;
@@ -213,16 +253,17 @@ public sealed class FanModeController
                 // Quiet / Synced from here on.
                 if (fanPresence != FanPresence.Visible)
                 {
+                    if (orphaned) { statuses[fan.Id] = StandIn(); continue; }
                     if (HeldByUs(fan.Id)) HandBack(fan.Id);
                     statuses[fan.Id] = Status(FanModeState.NotDetected);
                     continue;
                 }
 
-                var exclusion = FanGroupPolicy.Evaluate(fan, presence.FirstSight(fan.Id), settings.ExcludedIds, settings.IncludedIds);
                 if (exclusion != FanExclusion.None)
                 {
-                    if (HeldByUs(fan.Id)) HandBack(fan.Id);
                     _handedOff.Remove(fan.Id);
+                    if (orphaned) { statuses[fan.Id] = StandIn(); continue; }
+                    if (HeldByUs(fan.Id)) HandBack(fan.Id);
                     statuses[fan.Id] = Status(FanModeState.Excluded, exclusion: exclusion);
                     continue;
                 }
@@ -244,6 +285,7 @@ public sealed class FanModeController
                 if (temp is not { } raw || !double.IsFinite(raw))
                 {
                     _handedOff.TryAdd(fan.Id, now);
+                    if (orphaned) { statuses[fan.Id] = StandIn(); continue; }
                     if (HeldByUs(fan.Id)) HandBack(fan.Id);
                     statuses[fan.Id] = Status(FanModeState.NoTemperature);
                     continue;
@@ -256,8 +298,10 @@ public sealed class FanModeController
                 {
                     if (_handedOff.TryAdd(fan.Id, now))
                     {
-                        _log.LogInformation("Quiet: fan {Fan} handed back to firmware at {Temp:0.#}°C (raw {Raw:0.#}°C)", fan.Name, t, raw);
+                        _log.LogInformation("Quiet: fan {Fan} handed back to {Target} at {Temp:0.#}°C (raw {Raw:0.#}°C)",
+                            fan.Name, orphaned ? "the stand-in curve" : "firmware", t, raw);
                     }
+                    if (orphaned) { statuses[fan.Id] = StandIn(); continue; }
                     if (HeldByUs(fan.Id)) HandBack(fan.Id);
                     statuses[fan.Id] = Status(FanModeState.HandedOff, temp: t);
                     continue;

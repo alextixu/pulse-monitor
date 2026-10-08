@@ -42,6 +42,30 @@ public static class QuietFanCurve
 
     public static QuietCurveProfile ProfileFor(bool isGpuFan) => isGpuFan ? Gpu : Board;
 
+    /// <summary>
+    /// Conservative BIOS-like curve used for orphaned fans (firmware curve lost until reboot) whenever they would otherwise
+    /// be handed back: ≤ 50 °C 40 %, 70 °C 60 %, 80 °C 85 %, ≥ 85 °C 100 %. Pumps and unknown temperatures get 100 %.
+    /// </summary>
+    public static double StandInPercent(double? tempC, bool pumpLike)
+    {
+        if (pumpLike || tempC is not { } t || !double.IsFinite(t)) return 100;
+        ReadOnlySpan<(double T, double P)> points = [(50, 40), (70, 60), (80, 85), (85, 100)];
+        if (t <= points[0].T) return points[0].P;
+        for (var i = 1; i < points.Length; i++)
+        {
+            if (t <= points[i].T)
+            {
+                var (t0, p0) = points[i - 1];
+                var (t1, p1) = points[i];
+                return p0 + (t - t0) / (t1 - t0) * (p1 - p0);
+            }
+        }
+        return 100;
+    }
+
+    /// <summary>Duty orphaned fans are left at when Pulse exits (nothing controls them until the reboot).</summary>
+    public const double OrphanExitPercent = 100;
+
     public static double FloorFor(FanInfo fan, bool isGpuFan)
         => Math.Max(fan.MinPercent, ProfileFor(isGpuFan).FloorPercent);
 

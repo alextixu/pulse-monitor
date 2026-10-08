@@ -327,6 +327,8 @@ public sealed partial class FanItemViewModel : ObservableObject
     /// <summary>The measured duty pill; hidden while the mode chip already shows the applied duty (靜音 45% / 同步 50%).</summary>
     [ObservableProperty] private bool _showDutyPill;
     private bool _chipCarriesDuty;
+    /// <summary>Orphaned fan driven by Pulse's stand-in curve: no manual controls, even in 個別 mode.</summary>
+    private bool _standIn;
     [ObservableProperty] private string _modeChipText = string.Empty;
     [ObservableProperty] private BccTone _modeChipTone = BccTone.Neutral;
     [ObservableProperty] private bool _showMemberToggle;
@@ -362,7 +364,7 @@ public sealed partial class FanItemViewModel : ObservableObject
     /// <summary>Manual controls only in 個別 mode (or when modes are unavailable); the group switch only in 靜音 / 全部同步.</summary>
     private void RefreshPresentation()
     {
-        var individual = _mode == FanMode.Individual || !_controlAvailable;
+        var individual = (_mode == FanMode.Individual || !_controlAvailable) && !_standIn;
         ShowManualControls = CanControl && individual;
         ShowManualChip = IsManual && individual;
         ShowMemberToggle = CanControl && _controlAvailable && _mode is FanMode.Quiet or FanMode.Synced;
@@ -373,7 +375,9 @@ public sealed partial class FanItemViewModel : ObservableObject
     /// <summary>Status from the latest fan-mode evaluation (null: none yet / not applicable).</summary>
     public void ApplyStatus(FanModeFanStatus? status)
     {
-        if (status is null || _mode == FanMode.Individual || !_controlAvailable
+        // Orphaned fans (BIOS curve lost until reboot) are driven by Pulse in every mode, including 個別.
+        _standIn = status?.State == FanModeState.StandIn && _controlAvailable;
+        if (status is null || (_mode == FanMode.Individual && !_standIn) || !_controlAvailable
             || status.State is FanModeState.Individual or FanModeState.NotControllable or FanModeState.Unavailable)
         {
             ShowModeChip = false;
@@ -388,6 +392,7 @@ public sealed partial class FanItemViewModel : ObservableObject
             FanModeState.Quiet => (Strings.FanChipQuiet(status.Percent), BccTone.Teal),
             FanModeState.Synced => (Strings.FanChipSynced(status.Percent), BccTone.Accent),
             FanModeState.HandedOff => (Strings.FanChipHandedOff, BccTone.Warning),
+            FanModeState.StandIn => (Strings.FanChipStandIn(status.Percent), BccTone.Warning),
             FanModeState.NoTemperature => (Strings.FanChipNoTemp, BccTone.Warning),
             FanModeState.Excluded => (status.Exclusion is FanExclusion.PumpName or FanExclusion.PumpLike ? Strings.FanChipExcludedPump : Strings.FanChipExcluded, BccTone.Neutral),
             FanModeState.NotDetected => (Strings.FanChipDetecting, BccTone.Neutral),
@@ -408,7 +413,7 @@ public sealed partial class FanItemViewModel : ObservableObject
             }
             : null;
         if (_mode != FanMode.Individual) Error = status.Error;
-        _chipCarriesDuty = status.State is FanModeState.Quiet or FanModeState.Synced;
+        _chipCarriesDuty = status.State is FanModeState.Quiet or FanModeState.Synced or FanModeState.StandIn;
         RefreshPresentation();
     }
 

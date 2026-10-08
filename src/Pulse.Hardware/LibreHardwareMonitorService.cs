@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Principal;
 using Pulse.Core.Abstractions;
+using Pulse.Core.FanControl;
 using Pulse.Core.Models;
 using LibreHardwareMonitor.Hardware;
 using Microsoft.Extensions.Logging;
@@ -23,7 +24,7 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
 
     private const string RecoveredGpuNotice = "Pulse 上次未正常結束，已將停在手動轉速的顯示卡風扇交回自動。";
     private const string StuckBoardFansNoticeFormat =
-        "Pulse 上次未正常結束，主機板風扇（{0}）可能仍固定在手動轉速。主機板晶片無法在結束後還原 BIOS 曲線，請重新開機以恢復自動控制，或在下方自行設定轉速。";
+        "Pulse 上次未正常結束，主機板風扇（{0}）的 BIOS 曲線在重新開機前無法恢復。在那之前 Pulse 會用保守的升溫曲線代管它們（50°C 40%、70°C 60%、80°C 85%、85°C 全速），Pulse 結束時則保持全速。重新開機後即恢復正常。";
 
     /// <summary>How long Dispose waits for an in-flight LHM call before restoring fans anyway.</summary>
     private static readonly TimeSpan DisposeLockTimeout = TimeSpan.FromSeconds(5);
@@ -41,6 +42,12 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
     private readonly Dictionary<string, IControl> _touchedControls = new(StringComparer.Ordinal);
     /// <summary>Journal entries from a previous session this process cannot see yet (non-elevated). Guarded by <see cref="_lhmLock"/>.</summary>
     private readonly List<FanRecoveryJournal.Entry> _carriedOver = new();
+    /// <summary>
+    /// Fans whose firmware curve is lost until the next reboot (a killed Pulse held them). "Handing back" would re-apply
+    /// the stuck duty — LHM's SetDefault restores whatever the first SetSoftware of this process saw — so they are set to a
+    /// safe duty instead. Kept in the journal with the boot time. Guarded by <see cref="_lhmLock"/>.
+    /// </summary>
+    private readonly HashSet<string> _orphaned = new(StringComparer.Ordinal);
 
     // LHM types are only touched after InitializeAsync so that a missing native/managed library
     // (the package ships Windows runtimes only) surfaces as Unsupported instead of a constructor failure.
@@ -153,7 +160,16 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
                     throw new InvalidOperationException($"找不到風扇「{fanId}」，或此風扇不支援轉速控制。");
                 }
 
-                if (percent is null)
+                if (percent is null && _orphaned.Contains(fanId))
+                {
+                    // There is no firmware curve to go back to until the reboot: full speed is the safe stand-in.
+                    var safe = Math.Clamp(QuietFanCurve.OrphanExitPercent, control.MinSoftwareValue, control.MaxSoftwareValue);
+                    control.SetSoftware((float)safe);
+                    _manualFans[fanId] = safe;
+                    _touchedControls[fanId] = control;
+                    _logger.LogWarning("Fan {FanId} has no firmware curve until reboot; set to {Percent}% instead of handing it back", fanId, safe);
+                }
+                else if (percent is null)
                 {
                     control.SetDefault();
                     _manualFans.TryRemove(fanId, out _);
@@ -191,6 +207,13 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
             {
                 try
                 {
+                    if (_orphaned.Contains(fanId))
+                    {
+                        // Nothing will control it until the reboot: leave it at a safe duty, not the stuck one.
+                        control.SetSoftware((float)Math.Clamp(QuietFanCurve.OrphanExitPercent, control.MinSoftwareValue, control.MaxSoftwareValue));
+                        _logger.LogWarning("Fan {FanId} has no firmware curve until reboot; left at {Percent}% on shutdown", fanId, QuietFanCurve.OrphanExitPercent);
+                        continue;
+                    }
                     control.SetDefault();
                     _logger.LogInformation("Fan {FanId} handed back to firmware control on shutdown", fanId);
                 }
@@ -225,7 +248,7 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
                 kv.Value))
             .Concat(_carriedOver.Where(c => !_manualFans.ContainsKey(c.Id)))
             .ToList();
-        _journal.Write(entries);
+        _journal.Write(entries, _orphaned.ToList());
     }
 
     /// <summary>
@@ -235,8 +258,12 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
     /// </summary>
     private string? RecoverFromPreviousSessionLocked()
     {
-        var leftovers = _journal.Load();
-        if (leftovers.Count == 0) return null;
+        var state = _journal.Load();
+        var leftovers = state.ManualFans;
+
+        // Orphans recorded earlier during this boot stay orphaned (a clean Pulse restart does not bring the BIOS curve back).
+        foreach (var id in state.OrphanedFanIds) _orphaned.Add(id);
+        if (leftovers.Count == 0 && _orphaned.Count == 0) return null;
 
         var restoredGpu = 0;
         var stuck = new List<string>();
@@ -269,15 +296,19 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
                     _logger.LogWarning(ex, "Could not restore fan {FanId} left in manual mode by the previous session", entry.Id);
                 }
             }
-            else
+            else if (_orphaned.Add(entry.Id))
             {
-                stuck.Add(entry.Name);
-                _logger.LogWarning("Fan {FanId} ({Name}) may still be fixed at {Percent}% from the previous session; Super I/O cannot be restored without a reboot", entry.Id, entry.Name, entry.Percent);
+                _logger.LogWarning("Fan {FanId} ({Name}) may still be fixed at {Percent}% from the previous session; its BIOS curve is lost until reboot, Pulse drives it instead", entry.Id, entry.Name, entry.Percent);
             }
         }
 
+        foreach (var id in _orphaned)
+        {
+            stuck.Add(_fanBindings.TryGetValue(id, out var b) ? b.Fan.Name : id);
+        }
+
         WriteJournalLocked();
-        if (stuck.Count > 0) return string.Format(StuckBoardFansNoticeFormat, string.Join("、", stuck));
+        if (stuck.Count > 0) return string.Format(StuckBoardFansNoticeFormat, string.Join("、", stuck.Distinct()));
         return restoredGpu > 0 ? RecoveredGpuNotice : null;
     }
 
@@ -319,6 +350,7 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
 
         SnapshotBuildResult? result = null;
         string? recoveryNotice = null;
+        IReadOnlyList<string> orphanedIds = Array.Empty<string>();
         lock (_lhmLock)
         {
             var computer = new Computer
@@ -350,6 +382,7 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
                 _lastSnapshot = result.Snapshot;
 
                 recoveryNotice = RecoverFromPreviousSessionLocked();
+                orphanedIds = _orphaned.ToList();
             }
         }
 
@@ -380,6 +413,7 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
             FanControlAvailable = result.FanControlAvailable,
             Message = message,
             RecoveryNotice = recoveryNotice,
+            OrphanedFanIds = orphanedIds,
         });
     }
 

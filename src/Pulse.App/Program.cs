@@ -9,6 +9,9 @@ internal static class Program
     /// <summary>How long an "--elevated-relaunch" instance waits for the previous instance to release the mutex.</summary>
     private static readonly TimeSpan RelaunchMutexWait = TimeSpan.FromSeconds(10);
 
+    /// <summary>How long "--quit" waits for the running instance to finish its clean shutdown.</summary>
+    private static readonly TimeSpan QuitTimeout = TimeSpan.FromSeconds(15);
+
     // Initialization code. Don't use any Avalonia, third-party APIs or any
     // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
     // yet and stuff might break.
@@ -21,6 +24,11 @@ internal static class Program
         var log = loggerFactory.CreateLogger("Pulse.App.Program");
 
         InstallGlobalExceptionLogging(log);
+
+        if (options.Quit)
+        {
+            return SingleInstance.RequestQuit(QuitTimeout, log) ? 0 : 1;
+        }
 
         SingleInstance? instance = null;
         if (!options.Demo)
@@ -68,7 +76,11 @@ internal static class Program
         {
             if (e.ExceptionObject is Exception ex) log.LogCritical(ex, "Unhandled exception (terminating={Terminating})", e.IsTerminating);
             else log.LogCritical("Unhandled non-exception object: {Object}", e.ExceptionObject);
+            // The process is about to die: hand manual fans back before it does.
+            if (e.IsTerminating) App.RestoreFansOnAbnormalExit("unhandled exception");
         };
+        // Covers exits that skip the Avalonia Exit event (e.g. Environment.Exit, console close). A no-op after a clean exit.
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => App.RestoreFansOnAbnormalExit("process exit");
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
             log.LogError(e.Exception, "Unobserved task exception");

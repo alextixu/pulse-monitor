@@ -1,25 +1,32 @@
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Microsoft.Extensions.Logging;
 
 namespace Pulse.App.Services;
 
 /// <summary>
-/// Named-mutex single-instance guard. The first instance owns the mutex and listens on a named event;
-/// a second instance signals that event (so the first one shows its popover) and exits.
+/// Named-mutex single-instance guard. The first instance owns the mutex and listens on two named events:
+/// "show" (a second instance asks it to open its popover) and "quit" (<c>Pulse.exe --quit</c> asks it to exit cleanly,
+/// which hands manual fans back to the firmware — unlike killing the process).
+/// The objects grant authenticated users signal/wait access, so a normal process can reach an elevated instance.
 /// </summary>
 public sealed class SingleInstance : IDisposable
 {
     public const string MutexName = @"Global\Pulse.SingleInstance";
     public const string ShowEventName = @"Global\Pulse.ShowPopover";
+    public const string QuitEventName = @"Global\Pulse.Quit";
 
     private readonly Mutex _mutex;
     private readonly EventWaitHandle? _showEvent;
-    private RegisteredWaitHandle? _registration;
+    private readonly EventWaitHandle? _quitEvent;
+    private readonly List<RegisteredWaitHandle> _registrations = new();
     private bool _disposed;
 
-    private SingleInstance(Mutex mutex, EventWaitHandle? showEvent)
+    private SingleInstance(Mutex mutex, EventWaitHandle? showEvent, EventWaitHandle? quitEvent)
     {
         _mutex = mutex;
         _showEvent = showEvent;
+        _quitEvent = quitEvent;
     }
 
     /// <summary>
@@ -31,12 +38,18 @@ public sealed class SingleInstance : IDisposable
         Mutex mutex;
         try
         {
-            mutex = new Mutex(false, MutexName, out _);
+            mutex = CreateMutex();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // The mutex exists and belongs to an instance we may not fully open (older build or other ACL): it is running.
+            SignalExisting(log);
+            return null;
         }
         catch (Exception ex)
         {
             log.LogWarning(ex, "Single-instance mutex unavailable; continuing without guard");
-            return new SingleInstance(new Mutex(false), null);
+            return new SingleInstance(new Mutex(false), null, null);
         }
 
         bool owned;
@@ -56,27 +69,96 @@ public sealed class SingleInstance : IDisposable
             return null;
         }
 
-        EventWaitHandle? showEvent = null;
+        return new SingleInstance(mutex, CreateEvent(ShowEventName, log), CreateEvent(QuitEventName, log));
+    }
+
+    /// <summary>
+    /// Asks the running instance to exit cleanly and waits until it released the mutex.
+    /// Returns true when it exited (or none was running), false on timeout.
+    /// </summary>
+    public static bool RequestQuit(TimeSpan timeout, ILogger log)
+    {
+        if (!EventWaitHandle.TryOpenExisting(QuitEventName, out var quit))
+        {
+            log.LogInformation("--quit: no running instance");
+            return true;
+        }
+
+        using (quit) quit.Set();
+        log.LogInformation("--quit: signalled the running instance");
+
+        if (!Mutex.TryOpenExisting(MutexName, out var mutex)) return true;
+        using (mutex)
+        {
+            try
+            {
+                if (!mutex.WaitOne(timeout, false))
+                {
+                    log.LogWarning("--quit: the running instance did not exit within {Timeout} s", timeout.TotalSeconds);
+                    return false;
+                }
+                mutex.ReleaseMutex();
+            }
+            catch (AbandonedMutexException)
+            {
+                // It ended without releasing; still gone.
+            }
+            return true;
+        }
+    }
+
+    /// <summary>Invokes the callbacks (thread-pool thread) each time another process signals us.</summary>
+    public void StartListening(Action onShowRequested, Action onQuitRequested)
+    {
+        if (_registrations.Count > 0) return;
+        Register(_showEvent, onShowRequested);
+        Register(_quitEvent, onQuitRequested);
+    }
+
+    private void Register(EventWaitHandle? handle, Action callback)
+    {
+        if (handle is null) return;
+        _registrations.Add(ThreadPool.RegisterWaitForSingleObject(handle, (_, _) =>
+        {
+            if (!_disposed) callback();
+        }, null, Timeout.Infinite, false));
+    }
+
+    private static Mutex CreateMutex()
+    {
+        if (!OperatingSystem.IsWindows()) return new Mutex(false, MutexName, out _);
+
+        var security = new MutexSecurity();
+        security.AddAccessRule(new MutexAccessRule(CurrentUser(), MutexRights.FullControl, AccessControlType.Allow));
+        security.AddAccessRule(new MutexAccessRule(AuthenticatedUsers(), MutexRights.Synchronize | MutexRights.Modify, AccessControlType.Allow));
+        return MutexAcl.Create(false, MutexName, out _, security);
+    }
+
+    private static EventWaitHandle? CreateEvent(string name, ILogger log)
+    {
         try
         {
-            showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName, out _);
+            if (!OperatingSystem.IsWindows()) return new EventWaitHandle(false, EventResetMode.AutoReset, name, out _);
+
+            var security = new EventWaitHandleSecurity();
+            security.AddAccessRule(new EventWaitHandleAccessRule(CurrentUser(), EventWaitHandleRights.FullControl, AccessControlType.Allow));
+            security.AddAccessRule(new EventWaitHandleAccessRule(AuthenticatedUsers(),
+                EventWaitHandleRights.Synchronize | EventWaitHandleRights.Modify, AccessControlType.Allow));
+            return EventWaitHandleAcl.Create(false, EventResetMode.AutoReset, name, out _, security);
         }
         catch (Exception ex)
         {
-            log.LogDebug(ex, "Show-popover event unavailable; second instances cannot signal us");
+            log.LogDebug(ex, "Event {Name} unavailable; other processes cannot signal us", name);
+            return null;
         }
-
-        return new SingleInstance(mutex, showEvent);
     }
 
-    /// <summary>Invokes <paramref name="onShowRequested"/> (thread-pool thread) each time another instance signals us.</summary>
-    public void StartListening(Action onShowRequested)
+    private static SecurityIdentifier AuthenticatedUsers() => new(WellKnownSidType.AuthenticatedUserSid, null);
+
+    private static SecurityIdentifier CurrentUser()
     {
-        if (_showEvent is null || _registration is not null) return;
-        _registration = ThreadPool.RegisterWaitForSingleObject(_showEvent, (_, _) =>
-        {
-            if (!_disposed) onShowRequested();
-        }, null, Timeout.Infinite, false);
+        using var identity = WindowsIdentity.GetCurrent();
+        return identity.User!;
     }
 
     private static void SignalExisting(ILogger log)
@@ -99,8 +181,9 @@ public sealed class SingleInstance : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _registration?.Unregister(null);
+        foreach (var registration in _registrations) registration.Unregister(null);
         _showEvent?.Dispose();
+        _quitEvent?.Dispose();
         try { _mutex.ReleaseMutex(); } catch { /* not owned on this thread */ }
         _mutex.Dispose();
     }

@@ -32,6 +32,30 @@ public sealed record RgbMode
     public int? MaxBrightness { get; init; }
 }
 
+/// <summary>Mode-name conventions shared by the RGB backends and the UI.</summary>
+public static class RgbModeRules
+{
+    public static bool IsOff(RgbMode mode) => mode.Name.Trim().Equals("Off", StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsDirectOrStatic(RgbMode mode)
+    {
+        var name = mode.Name.Trim();
+        return mode.IsPerLed
+               || name.Equals("Direct", StringComparison.OrdinalIgnoreCase)
+               || name.Equals("Static", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The device's "Off" mode (case-insensitive name match), if any.</summary>
+    public static RgbMode? FindOffMode(IReadOnlyList<RgbMode> modes) => modes.FirstOrDefault(IsOff);
+
+    /// <summary>
+    /// First firmware effect (not Direct / Static / Off / per-LED), typically Rainbow / Spectrum Cycle — the fallback
+    /// "default" for a device whose original state was never captured.
+    /// </summary>
+    public static RgbMode? FindFirmwareEffect(IReadOnlyList<RgbMode> modes)
+        => modes.FirstOrDefault(m => !IsOff(m) && !IsDirectOrStatic(m));
+}
+
 public sealed record RgbZone
 {
     public required int Index { get; init; }

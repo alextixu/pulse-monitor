@@ -245,7 +245,8 @@ public sealed partial class MonitoringService : ObservableObject, IDisposable
     }
 
     private TimeSpan BatteryPeriod => TimeSpan.FromSeconds(Math.Clamp(_settings.BatteryRefreshSeconds, 5, 86400));
-    private TimeSpan HardwarePeriod => TimeSpan.FromSeconds(Math.Clamp(_settings.HardwareRefreshSeconds, 1, 3600));
+    /// <summary>The telemetry log samples every second, so it forces a 1 s poll while enabled.</summary>
+    private TimeSpan HardwarePeriod => TimeSpan.FromSeconds(_settings.TelemetryEnabled ? 1 : Math.Clamp(_settings.HardwareRefreshSeconds, 1, 3600));
 
     private async Task RefreshBatteriesAsync(bool waitIfBusy, CancellationToken ct)
     {

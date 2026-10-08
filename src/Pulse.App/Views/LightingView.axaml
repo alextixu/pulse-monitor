@@ -90,6 +90,20 @@
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
+                <Grid ColumnDefinitions="*,8,*" Margin="0,2,0,0">
+                    <Button Grid.Column="0" Classes="pill" HorizontalAlignment="Stretch" Command="{Binding TurnOffAllCommand}" ToolTip.Tip="{x:Static loc:Strings.TurnOffAllTip}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource IconPower}" Width="14" Height="14" />
+                            <TextBlock Text="{x:Static loc:Strings.TurnOffAll}" TextWrapping="NoWrap" />
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Column="2" Classes="pill" HorizontalAlignment="Stretch" Command="{Binding RestoreAllDefaultsCommand}" ToolTip.Tip="{x:Static loc:Strings.RestoreAllDefaultsTip}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource IconRestore}" Width="14" Height="14" />
+                            <TextBlock Text="{x:Static loc:Strings.RestoreAllDefaults}" TextWrapping="NoWrap" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
             </StackPanel>
         </Border>
 
@@ -116,7 +130,7 @@
                     <Border Classes="card">
                         <StackPanel Spacing="12">
                             <!-- Header -->
-                            <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                                 <Border Grid.Column="0" Classes="tile" Background="{DynamicResource BccPinkTintBrush}">
                                     <PathIcon Data="{Binding Icon}" Width="22" Height="22" Foreground="{DynamicResource BccPinkBrush}" />
                                 </Border>
@@ -130,6 +144,21 @@
                                 <Border Grid.Column="2" Width="30" Height="30" CornerRadius="15" VerticalAlignment="Center"
                                         Background="{Binding CurrentBrush}" BorderBrush="{DynamicResource BccHairlineBrush}" BorderThickness="2"
                                         ToolTip.Tip="{Binding CurrentHex}" />
+                                <!-- "…" menu -->
+                                <Button Grid.Column="3" Classes="icon" Width="28" Height="28" Margin="6,0,-6,0" VerticalAlignment="Center"
+                                        ToolTip.Tip="{x:Static loc:Strings.MoreActions}">
+                                    <PathIcon Data="{StaticResource IconMore}" Width="15" Height="15" />
+                                    <Button.Flyout>
+                                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                            <MenuItem Header="{x:Static loc:Strings.SaveCurrentAsDefault}" Command="{Binding SaveAsDefaultCommand}"
+                                                      ToolTip.Tip="{x:Static loc:Strings.SaveCurrentAsDefaultTip}">
+                                                <MenuItem.Icon>
+                                                    <PathIcon Data="{StaticResource IconCheck}" Width="14" Height="14" />
+                                                </MenuItem.Icon>
+                                            </MenuItem>
+                                        </MenuFlyout>
+                                    </Button.Flyout>
+                                </Button>
                             </Grid>
 
                             <!-- Mode -->
@@ -143,6 +172,25 @@
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
                             </Grid>
+
+                            <!-- Off / restore default -->
+                            <StackPanel Margin="44,-4,0,0" Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Classes="pill compact" Command="{Binding TurnOffCommand}" ToolTip.Tip="{x:Static loc:Strings.TurnOffTip}">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <PathIcon Data="{StaticResource IconPower}" Width="12" Height="12" />
+                                            <TextBlock Text="{x:Static loc:Strings.TurnOff}" TextWrapping="NoWrap" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Classes="pill compact" Command="{Binding RestoreDefaultCommand}" ToolTip.Tip="{Binding RestoreTip}">
+                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                            <PathIcon Data="{StaticResource IconRestore}" Width="12" Height="12" />
+                                            <TextBlock Text="{x:Static loc:Strings.RestoreDefault}" TextWrapping="NoWrap" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                                <TextBlock Classes="caption" FontSize="10.5" Text="{x:Static loc:Strings.RestoreUnavailable}" IsVisible="{Binding ShowRestoreHint}" />
+                            </StackPanel>
 
                             <!-- Colour -->
                             <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding ShowColor}">
@@ -218,6 +266,7 @@
                             </Expander>
 
                             <ProgressBar IsIndeterminate="True" Height="3" Classes="rounded" IsVisible="{Binding IsBusy}" />
+                            <TextBlock Classes="caption success" Text="{Binding Notice}" IsVisible="{Binding HasNotice}" />
                             <TextBlock Classes="caption danger" Text="{Binding Error}" IsVisible="{Binding HasError}" />
                         </StackPanel>
                     </Border>

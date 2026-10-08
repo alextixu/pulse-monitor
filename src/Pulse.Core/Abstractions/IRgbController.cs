@@ -32,4 +32,30 @@ public interface IRgbController : IDisposable
 
     /// <summary>Paints every LED of every device one colour.</summary>
     Task SetAllAsync(RgbColor color, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Turns a device's lights off: activates its "Off" mode when it has one, otherwise paints every LED black
+    /// (through the same direct / static path as <see cref="SetDeviceColorAsync"/>).
+    /// </summary>
+    Task TurnOffAsync(int deviceIndex, CancellationToken ct = default);
+
+    /// <summary>Turns every device off; a device that fails is logged and skipped.</summary>
+    Task TurnOffAllAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Puts a device back into the state it was in the first time this app saw it (mode, speed, direction, mode
+    /// colours and — for per-LED modes — every LED colour). Without a saved default the first firmware effect mode
+    /// (not Direct / Static / Off) is activated instead; without one of those either this is a no-op with a hint in
+    /// <see cref="RgbStatus.Message"/>.
+    /// </summary>
+    Task RestoreDefaultAsync(int deviceIndex, CancellationToken ct = default);
+
+    /// <summary>Restores every device (see <see cref="RestoreDefaultAsync"/>); a device that fails is logged and skipped.</summary>
+    Task RestoreAllDefaultsAsync(CancellationToken ct = default);
+
+    /// <summary>Overwrites a device's saved default with its current state.</summary>
+    Task SaveCurrentAsDefaultAsync(int deviceIndex, CancellationToken ct = default);
+
+    /// <summary>True when a saved default exists for the device (cheap, never blocks on the backend).</summary>
+    bool HasDefault(int deviceIndex);
 }

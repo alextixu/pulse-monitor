@@ -17,6 +17,9 @@ public sealed record AppOptions
 
     public bool IsScreenshotMode => ScreenshotDirectory is not null;
 
+    /// <summary>"--quit": ask the running instance to exit cleanly (restoring fans) and exit; starts no UI.</summary>
+    public bool Quit { get; init; }
+
     public static AppOptions Parse(string[] args)
     {
         var options = new AppOptions();
@@ -33,6 +36,9 @@ public sealed record AppOptions
                     break;
                 case "--demo":
                     options = options with { Demo = true };
+                    break;
+                case "--quit":
+                    options = options with { Quit = true };
                     break;
                 case "--screenshot":
                     if (i + 1 < args.Length)

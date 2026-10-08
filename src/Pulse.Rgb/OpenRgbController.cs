@@ -23,7 +23,10 @@ public sealed class OpenRgbController : IRgbController
     private static readonly TimeSpan WatchdogInterval = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan ProbeSlice = TimeSpan.FromMilliseconds(250);
 
+    private static readonly RgbColor Black = new(0, 0, 0);
+
     private readonly ILogger<OpenRgbController> _logger;
+    private readonly RgbDefaultsStore _defaults;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _statusLock = new();
     private readonly Timer _watchdog;
@@ -38,9 +41,16 @@ public sealed class OpenRgbController : IRgbController
     private RgbDevice[]? _devices;
     private volatile bool _disposed;
 
-    public OpenRgbController(ILogger<OpenRgbController> logger)
+    // Stable per-device keys of the current raw list (index = OpenRGB device index); replaced atomically so
+    // HasDefault can read it without the gate.
+    private volatile string[] _deviceKeys = [];
+
+    /// <param name="logger">Logger.</param>
+    /// <param name="defaultsPath">Where "restore default" snapshots are kept; null = %APPDATA%\Pulse\rgb-defaults.json.</param>
+    public OpenRgbController(ILogger<OpenRgbController> logger, string? defaultsPath = null)
     {
         _logger = logger;
+        _defaults = new RgbDefaultsStore(defaultsPath, logger);
         _watchdog = new Timer(Watchdog, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
@@ -348,6 +358,86 @@ public sealed class OpenRgbController : IRgbController
             return true;
         }, cancellationToken);
 
+    public Task TurnOffAsync(int deviceIndex, CancellationToken ct = default)
+        => ExecuteAsync("TurnOff", false, async (client, token) =>
+        {
+            var device = await RequireDeviceAsync(client, deviceIndex, token).ConfigureAwait(false);
+            await TurnOffCoreAsync(client, device, token).ConfigureAwait(false);
+            return true;
+        }, ct);
+
+    public Task TurnOffAllAsync(CancellationToken ct = default)
+        => ExecuteAsync("TurnOffAll", false, async (client, token) =>
+        {
+            await ForEachDeviceAsync(client, "Turning off", async (device, t) =>
+            {
+                await TurnOffCoreAsync(client, device, t).ConfigureAwait(false);
+                return true;
+            }, token).ConfigureAwait(false);
+            return true;
+        }, ct);
+
+    public async Task RestoreDefaultAsync(int deviceIndex, CancellationToken ct = default)
+    {
+        var outcome = await ExecuteAsync("RestoreDefault", RestoreOutcome.None, async (client, token) =>
+        {
+            var device = await RequireDeviceAsync(client, deviceIndex, token).ConfigureAwait(false);
+            return await RestoreCoreAsync(client, device, token).ConfigureAwait(false);
+        }, ct).ConfigureAwait(false);
+
+        if (outcome == RestoreOutcome.NothingToRestore)
+            Publish(Status with { Message = "這個裝置沒有可還原的預設狀態，也沒有可切換的韌體燈效，因此無法還原。" });
+    }
+
+    public async Task RestoreAllDefaultsAsync(CancellationToken ct = default)
+    {
+        var skipped = await ExecuteAsync("RestoreAllDefaults", (IReadOnlyList<string>)Array.Empty<string>(), async (client, token) =>
+        {
+            var results = await ForEachDeviceAsync(client, "Restoring", (device, t) => RestoreCoreAsync(client, device, t), token).ConfigureAwait(false);
+            return (IReadOnlyList<string>)results.Where(r => r.Result == RestoreOutcome.NothingToRestore).Select(r => r.Device.Name).ToArray();
+        }, ct).ConfigureAwait(false);
+
+        if (skipped.Count > 0)
+            Publish(Status with { Message = $"以下裝置沒有可還原的預設狀態，也沒有可切換的韌體燈效，已略過：{string.Join("、", skipped)}。" });
+    }
+
+    public Task SaveCurrentAsDefaultAsync(int deviceIndex, CancellationToken ct = default)
+        => ExecuteAsync("SaveCurrentAsDefault", false, async (client, token) =>
+        {
+            var device = await RequireDeviceAsync(client, deviceIndex, token).ConfigureAwait(false);
+
+            // Re-read the device: the raw list is not updated by LED writes, so it may not reflect what is lit now.
+            var fresh = await RunAsync(() => client.GetControllerData(device.Index), RequestTimeout, token).ConfigureAwait(false);
+            var slot = device.Index;
+            if (slot >= _rawDevices.Length) throw StaleCache();
+            var raw = _rawDevices.ToArray();
+            raw[slot] = fresh;
+            _rawDevices = raw;
+            StoreDevice(Map(fresh) with { Index = device.Index });
+
+            var keys = _deviceKeys;
+            var key = slot < keys.Length ? keys[slot] : BaseKey(fresh);
+            var snapshot = Capture(fresh, key);
+            _defaults.Set(snapshot);
+            _logger.LogInformation("OpenRGB device {Device} ({Name}): current state saved as default (mode {Mode})", device.Index, device.Name, snapshot.ModeName);
+            return true;
+        }, ct);
+
+    public bool HasDefault(int deviceIndex)
+    {
+        var keys = _deviceKeys;
+        if (deviceIndex < 0 || deviceIndex >= keys.Length) return false;
+        try
+        {
+            return _defaults.Contains(keys[deviceIndex]);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Reading RGB defaults failed");
+            return false;
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
@@ -375,10 +465,166 @@ public sealed class OpenRgbController : IRgbController
     private async Task<IReadOnlyList<RgbDevice>> RefreshDevicesCoreAsync(OpenRgbClient client, CancellationToken ct)
     {
         var raw = await RunAsync(client.GetAllControllerData, EnumerateTimeout, ct).ConfigureAwait(false);
+        var keys = ComputeKeys(raw);
         _rawDevices = raw;
         _devices = raw.Select(Map).ToArray();
+        _deviceKeys = keys;
         _logger.LogDebug("OpenRGB reported {Count} devices", raw.Length);
+        CaptureMissingDefaults(raw, keys);
         return _devices;
+    }
+
+    /// <summary>Records the state of every device seen for the first time (keyed by <see cref="ComputeKeys"/>).</summary>
+    private void CaptureMissingDefaults(Device[] raw, string[] keys)
+    {
+        try
+        {
+            var missing = new List<RgbDeviceDefault>();
+            for (var i = 0; i < raw.Length && i < keys.Length; i++)
+            {
+                if (!_defaults.Contains(keys[i])) missing.Add(Capture(raw[i], keys[i]));
+            }
+
+            if (missing.Count == 0) return;
+            _defaults.AddMissing(missing);
+            foreach (var s in missing)
+                _logger.LogInformation("OpenRGB default captured for {Name} (mode {Mode}, {Leds} LEDs) in {Path}", s.DeviceName, s.ModeName, s.LedColors.Count, _defaults.FilePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Capturing OpenRGB default snapshots failed");
+        }
+    }
+
+    private async Task TurnOffCoreAsync(OpenRgbClient client, RgbDevice device, CancellationToken ct)
+    {
+        var off = RgbModeRules.FindOffMode(device.Modes);
+        if (off is null)
+        {
+            await SetDeviceColorCoreAsync(client, device, Black, ct).ConfigureAwait(false);
+            _logger.LogDebug("OpenRGB device {Device} has no Off mode; painted black", device.Index);
+            return;
+        }
+
+        await RunAsync(() => { client.UpdateMode(device.Index, off.Index); return true; }, RequestTimeout, ct).ConfigureAwait(false);
+        StoreDevice(device with { ActiveModeIndex = off.Index, Colors = new RgbColor[device.LedCount] });
+        _logger.LogDebug("OpenRGB device {Device} switched to its Off mode ({Mode})", device.Index, off.Index);
+    }
+
+    private async Task<RestoreOutcome> RestoreCoreAsync(OpenRgbClient client, RgbDevice device, CancellationToken ct)
+    {
+        if (device.Index >= _rawDevices.Length) throw StaleCache();
+        var raw = _rawDevices[device.Index];
+        var keys = _deviceKeys;
+        var snapshot = device.Index < keys.Length ? _defaults.Get(keys[device.Index]) : null;
+
+        if (snapshot is not null)
+        {
+            var modeIndex = ResolveSavedMode(raw, snapshot);
+            if (modeIndex >= 0)
+            {
+                await ApplySnapshotAsync(client, device, raw, modeIndex, snapshot, ct).ConfigureAwait(false);
+                return RestoreOutcome.Restored;
+            }
+
+            _logger.LogWarning("Saved default mode '{Mode}' (#{Index}) no longer exists on OpenRGB device {Device}; using the fallback", snapshot.ModeName, snapshot.ModeIndex, device.Index);
+        }
+
+        var effect = RgbModeRules.FindFirmwareEffect(device.Modes);
+        if (effect is null)
+        {
+            _logger.LogInformation("OpenRGB device {Device} ({Name}) has no saved default and no firmware effect; nothing to restore", device.Index, device.Name);
+            return RestoreOutcome.NothingToRestore;
+        }
+
+        await RunAsync(() => { client.UpdateMode(device.Index, effect.Index); return true; }, RequestTimeout, ct).ConfigureAwait(false);
+        StoreDevice(device with { ActiveModeIndex = effect.Index });
+        _logger.LogInformation("OpenRGB device {Device} ({Name}) has no saved default; switched to firmware effect {Mode}", device.Index, device.Name, effect.Name);
+        return RestoreOutcome.FallbackEffect;
+    }
+
+    private async Task ApplySnapshotAsync(OpenRgbClient client, RgbDevice device, Device raw, int modeIndex, RgbDeviceDefault snapshot, CancellationToken ct)
+    {
+        var rawMode = raw.Modes[modeIndex];
+
+        uint? speed = null;
+        if (rawMode.SupportsSpeed && snapshot.Speed is { } s)
+        {
+            var lo = Math.Min(rawMode.SpeedMin, rawMode.SpeedMax);
+            var hi = Math.Max(rawMode.SpeedMin, rawMode.SpeedMax);
+            speed = Math.Clamp(s, lo, hi);
+        }
+
+        Direction? direction = rawMode.SupportsDirection && snapshot.Direction is { } d ? (Direction)d : null;
+
+        // UpdateMode requires exactly as many colours as the mode currently reports.
+        var modeColors = rawMode.Colors.Length > 0 ? Fit(ParseColors(snapshot.ModeColors), rawMode.Colors.Length) : null;
+
+        await RunAsync(() => { client.UpdateMode(device.Index, modeIndex, speed, direction, modeColors); return true; }, RequestTimeout, ct).ConfigureAwait(false);
+        if (speed is { } appliedSpeed) rawMode.SetSpeed(appliedSpeed);
+        if (direction is { } appliedDirection) rawMode.SetDirection(appliedDirection);
+        if (modeColors is not null) rawMode.SetColors(modeColors);
+
+        var savedLeds = ParseColors(snapshot.LedColors);
+        IReadOnlyList<RgbColor> cached = device.Colors;
+        var isPerLed = modeIndex < device.Modes.Count && device.Modes[modeIndex].IsPerLed;
+        var ledsWritten = 0;
+        if (isPerLed && device.LedCount > 0 && Fit(savedLeds, device.LedCount) is { } leds)
+        {
+            await RunAsync(() => { client.UpdateLeds(device.Index, leds); return true; }, RequestTimeout, ct).ConfigureAwait(false);
+            cached = ToModel(leds);
+            ledsWritten = leds.Length;
+        }
+        else if (modeColors is { Length: > 0 })
+        {
+            cached = ToModel(Repeat(new RgbColor(modeColors[0].R, modeColors[0].G, modeColors[0].B), device.LedCount));
+        }
+        else if (Fit(savedLeds, device.LedCount) is { } reported)
+        {
+            cached = ToModel(reported);
+        }
+
+        StoreDevice(device with { ActiveModeIndex = modeIndex, Colors = cached });
+        _logger.LogInformation("OpenRGB device {Device} ({Name}) restored to its default: mode {Mode} (speed={Speed}, direction={Direction}, mode colours={ModeColours}, LEDs={Leds})",
+            device.Index, device.Name, rawMode.Name, speed, direction, modeColors?.Length ?? 0, ledsWritten);
+    }
+
+    /// <summary>Saved mode by name (preferring the saved index among equal names), else by index; -1 when gone.</summary>
+    private static int ResolveSavedMode(Device raw, RgbDeviceDefault snapshot)
+    {
+        var modes = raw.Modes;
+        var name = snapshot.ModeName.Trim();
+        if (name.Length > 0)
+        {
+            if (snapshot.ModeIndex >= 0 && snapshot.ModeIndex < modes.Length && modes[snapshot.ModeIndex].Name.Trim().Equals(name, StringComparison.OrdinalIgnoreCase))
+                return snapshot.ModeIndex;
+            var byName = Array.FindIndex(modes, m => m.Name.Trim().Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (byName >= 0) return byName;
+        }
+
+        return snapshot.ModeIndex >= 0 && snapshot.ModeIndex < modes.Length ? snapshot.ModeIndex : -1;
+    }
+
+    /// <summary>Runs <paramref name="body"/> for every device; per-device failures (other than a lost connection) are logged and skipped.</summary>
+    private async Task<List<(RgbDevice Device, T Result)>> ForEachDeviceAsync<T>(OpenRgbClient client, string action, Func<RgbDevice, CancellationToken, Task<T>> body, CancellationToken ct)
+    {
+        var devices = _devices ?? await RefreshDevicesCoreAsync(client, ct).ConfigureAwait(false);
+        var results = new List<(RgbDevice, T)>();
+        foreach (var listed in devices.ToArray())
+        {
+            ct.ThrowIfCancellationRequested();
+            var device = _devices?.FirstOrDefault(d => d.Index == listed.Index) ?? listed;
+            try
+            {
+                results.Add((device, await body(device, ct).ConfigureAwait(false)));
+            }
+            catch (Exception ex) when (!IsConnectionFailure(ex) && ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "{Action} OpenRGB device {Index} ({Name}) failed; continuing with the next device", action, device.Index, device.Name);
+            }
+        }
+
+        return results;
     }
 
     private async Task<RgbDevice> RequireDeviceAsync(OpenRgbClient client, int deviceIndex, CancellationToken ct)
@@ -613,6 +859,7 @@ public sealed class OpenRgbController : IRgbController
         _client = null;
         _devices = null;
         _rawDevices = [];
+        _deviceKeys = [];
         if (client is null) return;
 
         try
@@ -659,6 +906,21 @@ public sealed class OpenRgbController : IRgbController
 
     private static string CannotConnectMessage(string host, int port)
         => $"無法連線到 OpenRGB SDK 伺服器（{host}:{port}）。請安裝 OpenRGB，並在 設定 › SDK Server 啟用伺服器（或以 --server 參數啟動）。";
+
+    private InvalidOperationException StaleCache()
+    {
+        // Cached snapshot no longer matches the raw list (should not happen: both are replaced together).
+        _devices = null;
+        return new InvalidOperationException("Cached OpenRGB device list is stale; refresh and retry.");
+    }
+
+    private enum RestoreOutcome
+    {
+        None,
+        Restored,
+        FallbackEffect,
+        NothingToRestore,
+    }
 
     /// <summary>Bad device / zone / mode index supplied by the caller; the only failure that propagates.</summary>
     private sealed class BadIndexException(string paramName, int actualValue, string message)
@@ -720,6 +982,87 @@ public sealed class OpenRgbController : IRgbController
         20 => "Monitor",
         _ => "Unknown",
     };
+
+    // ----- default snapshots ----------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Stable identity of each device across sessions: Name + Location + Serial when OpenRGB reports either, else
+    /// Name + type + LED count; duplicates within one list get a "#n" suffix in enumeration order.
+    /// </summary>
+    private static string[] ComputeKeys(Device[] devices)
+    {
+        var keys = new string[devices.Length];
+        var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = 0; i < devices.Length; i++)
+        {
+            var key = BaseKey(devices[i]);
+            var n = seen.GetValueOrDefault(key);
+            seen[key] = n + 1;
+            keys[i] = n == 0 ? key : $"{key}#{n + 1}";
+        }
+
+        return keys;
+    }
+
+    private static string BaseKey(Device device)
+    {
+        var name = device.Name?.Trim() ?? string.Empty;
+        var location = device.Location?.Trim() ?? string.Empty;
+        var serial = device.Serial?.Trim() ?? string.Empty;
+        return location.Length > 0 || serial.Length > 0
+            ? $"{name}|{location}|{serial}"
+            : $"{name}|type{(int)device.Type}|{device.Leds.Length} LEDs";
+    }
+
+    private static RgbDeviceDefault Capture(Device device, string key)
+    {
+        var mode = device.ActiveModeIndex >= 0 && device.ActiveModeIndex < device.Modes.Length ? device.Modes[device.ActiveModeIndex] : null;
+        return new RgbDeviceDefault
+        {
+            Key = key,
+            DeviceName = device.Name ?? string.Empty,
+            CapturedAt = DateTimeOffset.Now,
+            ModeIndex = device.ActiveModeIndex,
+            ModeName = mode?.Name ?? string.Empty,
+            ModeIsPerLed = mode?.Flags.HasFlag(ModeFlags.HasPerLedColor) ?? false,
+            Speed = mode is { SupportsSpeed: true } ? mode.Speed : null,
+            Direction = mode is { SupportsDirection: true } ? (int)mode.Direction : null,
+            ColorMode = mode is null ? 0 : (int)mode.ColorMode,
+            ModeColors = mode?.Colors.Select(ToHex).ToList() ?? new List<string>(),
+            LedColors = device.Colors.Select(ToHex).ToList(),
+        };
+    }
+
+    private static string ToHex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+
+    private static Color[] ParseColors(IEnumerable<string>? hexes)
+    {
+        var result = new List<Color>();
+        foreach (var hex in hexes ?? [])
+        {
+            try
+            {
+                var c = RgbColor.FromHex(hex);
+                result.Add(new Color(c.R, c.G, c.B));
+            }
+            catch (Exception ex) when (ex is FormatException or ArgumentException or OverflowException)
+            {
+                // Hand-edited / corrupt entry: skip it.
+            }
+        }
+
+        return result.ToArray();
+    }
+
+    /// <summary>Repeats / truncates <paramref name="colors"/> to exactly <paramref name="count"/> entries; null when there is nothing to fit.</summary>
+    private static Color[]? Fit(Color[] colors, int count)
+    {
+        if (colors.Length == 0 || count <= 0) return null;
+        if (colors.Length == count) return colors;
+        var result = new Color[count];
+        for (var i = 0; i < count; i++) result[i] = colors[i % colors.Length];
+        return result;
+    }
 
     private static Color[] Repeat(RgbColor color, int count)
     {

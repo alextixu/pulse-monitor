@@ -4,10 +4,18 @@ using LibreHardwareMonitor.Hardware;
 
 namespace Pulse.Hardware;
 
-/// <summary>A fan sensor paired with the control channel (PWM duty) of the same hardware, when one exists.</summary>
-internal sealed record FanBinding(ISensor Fan, ISensor? ControlSensor)
+/// <summary>
+/// A fan sensor paired with the control channel (PWM duty) of the same hardware, when one exists.
+/// <paramref name="Controllable"/> is false when the channel is only readable in this process (Windows without
+/// elevation: LHM accepts writes to GPU fans there, but the driver ignores them).
+/// </summary>
+internal sealed record FanBinding(ISensor Fan, ISensor? ControlSensor, bool Controllable = true)
 {
-    public IControl? Control => ControlSensor?.Control;
+    /// <summary>The writable control, or null when the fan cannot be controlled from this process.</summary>
+    public IControl? Control => Controllable ? ControlSensor?.Control : null;
+
+    /// <summary>The control channel regardless of <see cref="Controllable"/> (duty readout, min/max).</summary>
+    public IControl? Channel => ControlSensor?.Control;
 }
 
 internal sealed record SnapshotBuildResult(
@@ -41,7 +49,8 @@ internal static partial class SnapshotBuilder
 
     private const string PhysicalMemoryIdentifier = "/ram";
 
-    public static SnapshotBuildResult Build(IEnumerable<IHardware> roots, IReadOnlyDictionary<string, double> manualFans)
+    /// <param name="allowControl">False reports every fan as monitor-only (no writable control), e.g. when not elevated.</param>
+    public static SnapshotBuildResult Build(IEnumerable<IHardware> roots, IReadOnlyDictionary<string, double> manualFans, bool allowControl = true)
     {
         CpuInfo? cpu = null;
         var cpuTemperatureAvailable = false;
@@ -73,7 +82,7 @@ internal static partial class SnapshotBuilder
                     break;
             }
 
-            Walk(root, surfaced, manualFans, fans, otherTemperatures, bindings);
+            Walk(root, surfaced, allowControl, manualFans, fans, otherTemperatures, bindings);
         }
 
         var snapshot = new HardwareSnapshot
@@ -103,6 +112,7 @@ internal static partial class SnapshotBuilder
     private static void Walk(
         IHardware hardware,
         bool surfaced,
+        bool allowControl,
         IReadOnlyDictionary<string, double> manualFans,
         List<FanInfo> fans,
         List<TemperatureReading> otherTemperatures,
@@ -123,7 +133,8 @@ internal static partial class SnapshotBuilder
                     (controlSensors ??= new List<ISensor>()).Add(sensor);
                     break;
                 // 0 °C is the "header not connected" sentinel of ASUS EC "T Sensor" inputs; skip it.
-                case SensorType.Temperature when !surfaced && Value(sensor) is { } temp && temp > 0:
+                // DDR5 SPD hubs also expose their configuration (resolution, high / critical limits) as "temperatures".
+                case SensorType.Temperature when !surfaced && Value(sensor) is { } temp && temp > 0 && !IsThresholdSetting(sensor.Name):
                     otherTemperatures.Add(new TemperatureReading(sensor.Identifier.ToString(), sensor.Name, group, temp));
                     break;
             }
@@ -134,11 +145,11 @@ internal static partial class SnapshotBuilder
             foreach (var fan in fanSensors)
             {
                 var control = FindControl(fan, controlSensors);
-                var binding = new FanBinding(fan, control);
+                var binding = new FanBinding(fan, control, allowControl);
                 var id = fan.Identifier.ToString();
                 bindings[id] = binding;
 
-                var ic = binding.Control;
+                var channel = binding.Channel;
                 fans.Add(new FanInfo
                 {
                     Id = id,
@@ -146,17 +157,17 @@ internal static partial class SnapshotBuilder
                     Group = group,
                     Rpm = Value(fan),
                     Percent = control is null ? null : Value(control),
-                    CanControl = ic is not null,
+                    CanControl = binding.Control is not null,
                     IsManual = manualFans.ContainsKey(id),
-                    MinPercent = ic?.MinSoftwareValue ?? 0,
-                    MaxPercent = ic?.MaxSoftwareValue ?? 100,
+                    MinPercent = channel?.MinSoftwareValue ?? 0,
+                    MaxPercent = channel?.MaxSoftwareValue ?? 100,
                 });
             }
         }
 
         foreach (var sub in hardware.SubHardware)
         {
-            Walk(sub, surfaced, manualFans, fans, otherTemperatures, bindings);
+            Walk(sub, surfaced, allowControl, manualFans, fans, otherTemperatures, bindings);
         }
     }
 
@@ -311,6 +322,11 @@ internal static partial class SnapshotBuilder
     /// <summary>Current value as double, or null when the sensor has not produced a (finite) reading.</summary>
     private static double? Value(ISensor sensor)
         => sensor.Value is { } v && float.IsFinite(v) ? v : null;
+
+    /// <summary>Sensor configuration published as a temperature, e.g. "Temperature Sensor Resolution", "Thermal Sensor High Limit".</summary>
+    private static bool IsThresholdSetting(string name)
+        => name.Contains("Resolution", StringComparison.OrdinalIgnoreCase)
+           || name.Contains("Limit", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>First sensor, in priority order of <paramref name="names"/>, that currently has a value.</summary>
     private static ISensor? Find(List<ISensor> sensors, params string[] names)

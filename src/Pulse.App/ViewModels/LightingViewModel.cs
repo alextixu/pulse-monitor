@@ -112,6 +112,32 @@ public sealed partial class LightingViewModel : TabViewModelBase
     [RelayCommand]
     private Task ApplyCustomToAllAsync() => ApplyToAllAsync(new RgbColor(CustomColor.R, CustomColor.G, CustomColor.B));
 
+    [RelayCommand]
+    private Task TurnOffAllAsync() => RunAsync(async () =>
+    {
+        await Task.Run(() => Rgb.TurnOffAllAsync());
+        await SyncDevicesAsync();
+        _log.LogInformation("RGB: all devices off");
+    });
+
+    [RelayCommand]
+    private Task RestoreAllDefaultsAsync() => RunAsync(async () =>
+    {
+        await Task.Run(() => Rgb.RestoreAllDefaultsAsync());
+        await SyncDevicesAsync();
+        _log.LogInformation("RGB: all devices restored to their defaults");
+    });
+
+    /// <summary>Re-reads the backend's cached device list (no server round trip) and updates every card.</summary>
+    private async Task SyncDevicesAsync()
+    {
+        var devices = await Task.Run(() => Rgb.GetDevicesAsync(refresh: false));
+        foreach (var vm in Devices)
+        {
+            if (devices.FirstOrDefault(d => d.Index == vm.Index) is { } device) vm.Sync(device);
+        }
+    }
+
     private async Task RunAsync(Func<Task> action)
     {
         Error = null;
@@ -258,6 +284,13 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
     [ObservableProperty] private bool _hasZones;
     [ObservableProperty] private string _zonesHeader = Strings.Zones;
     [ObservableProperty] private Color _customColor;
+    [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(RestoreDefaultCommand))] private bool _canRestore = true;
+    [ObservableProperty] private bool _showRestoreHint;
+    [ObservableProperty] private string _restoreTip = Strings.RestoreDefaultTip;
+    [ObservableProperty] private string? _notice;
+    [ObservableProperty] private bool _hasNotice;
+
+    private readonly RgbMode? _fallbackEffect;
 
     public RgbDeviceViewModel(RgbDevice device, IRgbController rgb, ILogger log)
     {
@@ -265,6 +298,7 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
         _log = log;
         Index = device.Index;
         Modes = device.Modes;
+        _fallbackEffect = RgbModeRules.FindFirmwareEffect(device.Modes);
         Presets = LightingViewModel.PresetHexes.Select(h => new ColorSwatchItem(RgbColor.FromHex(h), SetColorCommand)).ToList();
         Zones = device.Zones.Select(z => new RgbZoneViewModel(z, SetZoneColorCommand)).ToList();
         _sliderTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = SliderDebounce };
@@ -282,6 +316,7 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
         SelectedMode = Modes.FirstOrDefault(m => m.Index == device.ActiveModeIndex) ?? Modes.FirstOrDefault();
         ApplyModeCapabilities(SelectedMode);
         _syncing = false;
+        UpdateRestoreAvailability();
     }
 
     public int Index { get; }
@@ -301,7 +336,29 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
         CustomColor = Color.FromRgb(color.R, color.G, color.B);
     }
 
+    /// <summary>Mirrors the backend's view of the device (active mode, colour) without re-applying anything.</summary>
+    public void Sync(RgbDevice device)
+    {
+        _sliderTimer.Stop();
+        var wasSyncing = _syncing;
+        _syncing = true;
+        try
+        {
+            if (device.Colors.Count > 0) ReflectColor(device.Colors[0]);
+            SelectedMode = Modes.FirstOrDefault(m => m.Index == device.ActiveModeIndex) ?? SelectedMode;
+            ApplyModeCapabilities(SelectedMode);
+        }
+        finally
+        {
+            _syncing = wasSyncing;
+        }
+
+        UpdateRestoreAvailability();
+    }
+
     partial void OnErrorChanged(string? value) => HasError = !string.IsNullOrWhiteSpace(value);
+
+    partial void OnNoticeChanged(string? value) => HasNotice = !string.IsNullOrWhiteSpace(value);
 
     partial void OnSelectedModeChanged(RgbMode? value)
     {
@@ -344,6 +401,60 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
         await Task.Run(() => _rgb.SetZoneColorAsync(Index, request.ZoneIndex, request.Color));
         _log.LogInformation("RGB {Device} zone {Zone} → {Color}", Name, request.ZoneIndex, request.Color);
     });
+
+    [RelayCommand]
+    private Task TurnOffAsync() => RunAsync(async () =>
+    {
+        await Task.Run(() => _rgb.TurnOffAsync(Index));
+        await RefreshFromBackendAsync();
+        Notice = Strings.TurnedOff;
+        _log.LogInformation("RGB {Device} off", Name);
+    });
+
+    [RelayCommand(CanExecute = nameof(CanRestore))]
+    private Task RestoreDefaultAsync() => RunAsync(async () =>
+    {
+        await Task.Run(() => _rgb.RestoreDefaultAsync(Index));
+        await RefreshFromBackendAsync();
+        Notice = Strings.RestoredDefault;
+        _log.LogInformation("RGB {Device} restored to its default", Name);
+    });
+
+    [RelayCommand]
+    private Task SaveAsDefaultAsync() => RunAsync(async () =>
+    {
+        await Task.Run(() => _rgb.SaveCurrentAsDefaultAsync(Index));
+        await RefreshFromBackendAsync();
+        Notice = _rgb.HasDefault(Index) ? Strings.SavedAsDefault : null;
+        _log.LogInformation("RGB {Device}: current state saved as default", Name);
+    });
+
+    private async Task RefreshFromBackendAsync()
+    {
+        var devices = await Task.Run(() => _rgb.GetDevicesAsync(refresh: false));
+        if (devices.FirstOrDefault(d => d.Index == Index) is { } device) Sync(device);
+        else UpdateRestoreAvailability();
+    }
+
+    private void UpdateRestoreAvailability()
+    {
+        bool hasDefault;
+        try
+        {
+            hasDefault = _rgb.HasDefault(Index);
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "HasDefault failed for {Device}", Name);
+            hasDefault = false;
+        }
+
+        CanRestore = hasDefault || _fallbackEffect is not null;
+        ShowRestoreHint = !CanRestore;
+        RestoreTip = hasDefault
+            ? Strings.RestoreDefaultTip
+            : _fallbackEffect is { } effect ? string.Format(Strings.RestoreFallbackFormat, effect.Name) : Strings.RestoreUnavailable;
+    }
 
     private Task ApplyModeAsync()
     {
@@ -396,6 +507,11 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    partial void OnIsBusyChanged(bool value)
+    {
+        if (value) Notice = null;
     }
 }
 

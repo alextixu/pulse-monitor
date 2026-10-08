@@ -254,6 +254,34 @@ public sealed partial class SettingsViewModel : TabViewModelBase
 
     public string LowBatteryThresholdText => string.Format(Strings.PercentFormat, S.LowBatteryThresholdPercent);
 
+    // ---- 記錄 ----
+
+    public bool TelemetryEnabled
+    {
+        get => S.TelemetryEnabled;
+        set
+        {
+            if (S.TelemetryEnabled == value) return;
+            S.TelemetryEnabled = value;
+            OnPropertyChanged();
+            Settings.NotifyChanged(nameof(AppSettings.TelemetryEnabled));
+        }
+    }
+
+    public string TelemetryPath => TelemetryLogger.CurrentPath;
+
+    [RelayCommand]
+    private void OpenTelemetryFolder()
+    {
+        var dir = TelemetryLogger.Directory;
+        Open(() =>
+        {
+            Directory.CreateDirectory(dir);
+            var target = File.Exists(TelemetryLogger.CurrentPath) ? $"/select,\"{TelemetryLogger.CurrentPath}\"" : $"\"{dir}\"";
+            Process.Start(new ProcessStartInfo("explorer.exe", target) { UseShellExecute = true });
+        }, dir);
+    }
+
     // ---- 關於 ----
 
     /// <summary>"版本 0.1.0" from the assembly informational version.</summary>

@@ -186,6 +186,14 @@
         <Setter Property="Foreground" Value="{DynamicResource BccOnAccentBrush}" />
     </Style>
 
+    <!-- Smaller pill for secondary actions inside cards (combine with .pill / .pill-accent / .pill-danger) -->
+    <Style Selector="Button.compact">
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+
     <Style Selector="Button.chip">
         <Setter Property="CornerRadius" Value="999" />
         <Setter Property="Padding" Value="10,4" />

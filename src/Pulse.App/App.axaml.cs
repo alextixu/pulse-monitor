@@ -27,6 +27,8 @@ public partial class App : Application
     private ILogger<App>? _log;
     private PopoverWindow? _popover;
     private TrayService? _tray;
+    private IHardwareMonitor? _hardware;
+    private FanModeService? _fanModes;
     private MainViewModel? _viewModel;
 
     /// <summary>Parsed command line (set by <see cref="Program"/> before Avalonia starts).</summary>
@@ -83,6 +85,26 @@ public partial class App : Application
         };
     }
 
+    /// <summary>
+    /// Last-chance fan restore for exits that bypass <see cref="OnExit"/> (unhandled exception, process exit).
+    /// Disposing the hardware monitor hands manual fans back; it is idempotent, so this is a no-op after a clean exit.
+    /// </summary>
+    internal static void RestoreFansOnAbnormalExit(string reason)
+    {
+        if (Current is not { _hardware: { } hardware } app) return;
+        try
+        {
+            app._log?.LogWarning("Restoring fans on {Reason}", reason);
+            // Stop the fan modes first so nothing re-applies a duty after the monitor hands the fans back.
+            app._fanModes?.StopApplying();
+            hardware.Dispose();
+        }
+        catch
+        {
+            // Nothing more can be done while the process is going down.
+        }
+    }
+
     public void ShowPopover() => _popover?.ShowPopover();
 
     public void HidePopover() => _popover?.HidePopover();
@@ -129,6 +151,10 @@ public partial class App : Application
         desktop.Exit += OnExit;
 
         var monitoring = _services.GetRequiredService<MonitoringService>();
+        // Resolved before polling starts so it sees the first snapshot; disposed before IHardwareMonitor (dependency order).
+        _fanModes = _services.GetRequiredService<FanModeService>();
+        // Demo / screenshot data is fake: never let it into the real telemetry file.
+        if (!Options.Demo) _services.GetRequiredService<TelemetryLogger>().Start();
         monitoring.Start();
 
         if (Options.IsScreenshotMode)
@@ -141,7 +167,14 @@ public partial class App : Application
         _tray.Initialize();
         _tray.Clicked += (_, _) => TogglePopover();
 
-        Instance?.StartListening(() => Dispatcher.UIThread.Post(ShowPopover));
+        _hardware = _services.GetRequiredService<IHardwareMonitor>();
+        Instance?.StartListening(
+            onShowRequested: () => Dispatcher.UIThread.Post(ShowPopover),
+            onQuitRequested: () => Dispatcher.UIThread.Post(() =>
+            {
+                _log?.LogInformation("Quit requested by another process (--quit)");
+                desktop.Shutdown(0);
+            }));
 
         if (!Options.StartMinimized)
         {
@@ -186,7 +219,8 @@ public partial class App : Application
 
         try
         {
-            // Disposes MonitoringService first (registered last), then IHardwareMonitor (restores fans) / IRgbController / providers.
+            // Singletons are disposed in reverse creation order: FanModeService (stops applying) before MonitoringService,
+            // then IHardwareMonitor (restores fans) / IRgbController / providers.
             _services?.Dispose();
         }
         catch (Exception ex)
@@ -194,6 +228,8 @@ public partial class App : Application
             _log?.LogWarning(ex, "Service disposal failed");
         }
         _services = null;
+        // Services (and with them the fans) are already restored: the ProcessExit hook has nothing left to do.
+        _hardware = null;
     }
 
     private static ServiceProvider BuildServices()
@@ -207,7 +243,15 @@ public partial class App : Application
         services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
 
         services.AddSingleton(Options);
-        services.AddSingleton<ISettingsStore, JsonSettingsStore>();
+        if (Options.Demo)
+        {
+            // Demo / screenshot runs read the user's settings but never write them back (they switch fan modes etc.).
+            services.AddSingleton<ISettingsStore, DemoSettingsStore>();
+        }
+        else
+        {
+            services.AddSingleton<ISettingsStore, JsonSettingsStore>();
+        }
         services.AddSingleton(sp => sp.GetRequiredService<ISettingsStore>().Load());
         services.AddSingleton<SettingsService>();
 
@@ -236,6 +280,8 @@ public partial class App : Application
 
         services.AddSingleton<TrayIconRenderer>();
         services.AddSingleton<MonitoringService>();
+        services.AddSingleton<FanModeService>();
+        services.AddSingleton<TelemetryLogger>();
 
         services.AddSingleton<DevicesViewModel>();
         services.AddSingleton<SystemViewModel>();

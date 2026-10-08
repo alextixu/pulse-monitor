@@ -181,6 +181,10 @@ public static class Strings
     public const string SettingAuthorLine = "Pulse · MIT 授權";
     public const string OpenSettingsFolder = "開啟設定檔資料夾";
     public const string OpenLogFile = "開啟記錄檔";
+    public const string SettingsTelemetry = "硬體記錄";
+    public const string SettingTelemetryEnabled = "每秒記錄溫度、使用率與功耗";
+    public const string SettingTelemetryHint = "寫成 CSV（可用 Excel 開啟），每小時清除一次並保留前一小時；開啟時硬體每秒更新。";
+    public const string OpenTelemetryFolder = "開啟記錄資料夾";
     public const string TestConnection = "連線測試";
     public const string DemoModeBadge = "示範模式";
 
@@ -202,11 +206,60 @@ public static class Strings
     public const string RgbServerVersionFormat = "伺服器 {0}";
     public const string ColorAppliedFormat = "已套用 {0}";
 
+    // ---- Lighting: off / restore default ----
+    public const string TurnOff = "關燈";
+    public const string TurnOffAll = "全部關燈";
+    public const string RestoreDefault = "還原預設";
+    public const string RestoreAllDefaults = "全部還原預設";
+    public const string SaveCurrentAsDefault = "將目前狀態設為預設";
+    public const string MoreActions = "更多動作";
+    public const string TurnOffTip = "有「Off」模式時切換到該模式，否則把每顆 LED 設為黑色";
+    public const string TurnOffAllTip = "關閉所有裝置的燈光";
+    public const string RestoreDefaultTip = "還原到 Pulse 第一次偵測到此裝置時的燈光狀態";
+    public const string RestoreAllDefaultsTip = "把所有裝置還原到 Pulse 第一次偵測到它們時的燈光狀態";
+    public const string RestoreFallbackFormat = "尚未記錄預設狀態，將切換到韌體燈效「{0}」";
+    public const string RestoreUnavailable = "尚未記錄預設狀態，也沒有可切換的韌體燈效";
+    public const string SaveCurrentAsDefaultTip = "之後「還原預設」會回到現在的燈光狀態";
+    public const string SavedAsDefault = "已將目前狀態設為預設";
+    public const string TurnedOff = "已關燈";
+    public const string RestoredDefault = "已還原預設";
+
     // ---- Fans (part 2, extra) ----
     public const string FanManualChip = "手動";
     public const string FanAutoChip = "自動";
     public const string FansEmptyHint = "硬體監控就緒後會在此列出風扇。";
     public const string FanDuty = "轉速比";
+
+    // ---- Fan modes ----
+    public const string FanModesTitle = "風扇模式";
+    public const string FanModeAuto = "自動";
+    public const string FanModeQuiet = "靜音";
+    public const string FanModeSynced = "全部同步";
+    public const string FanModeIndividual = "個別";
+    public const string FanModeAutoHint = "所有風扇交給主機板 BIOS 與顯示卡驅動自動控制。";
+    public const string FanModeQuietHint = "依 CPU／GPU 溫度低速運轉；過熱時自動交回 BIOS 控制。";
+    public const string FanModeSyncedHint = "納入群組的風扇以相同轉速運轉。";
+    public const string FanModeIndividualHint = "在下方逐一手動設定每個風扇。";
+    public const string FanModeUnavailable = "需要系統管理員權限才能使用風扇模式；目前的選擇會保留。";
+    public const string FanQuietCurveLine = "50°C 以下維持最低轉速，50–70°C 逐步升到 60%";
+    public const string FanQuietHandoffLine = "75°C 以上交回自動控制，降到 68°C 後恢復靜音";
+    public const string FanQuietWaiting = "等待溫度資料…";
+    public const string FanBoardShort = "主機板";
+    public const string FanGpuShort = "顯示卡";
+    public const string FanSyncedLabel = "同步轉速";
+    public const string FanGroupMember = "納入群組控制";
+    public const string FanChipHandedOff = "溫度高·自動";
+    public const string FanChipNoTemp = "無溫度·自動";
+    public const string FanChipExcluded = "已排除";
+    public const string FanChipExcludedPump = "已排除：可能是水冷泵";
+    public const string FanChipDetecting = "偵測中";
+    public const string FanExcludedUser = "已手動排除，維持主機板自動控制。";
+    public const string FanExcludedPumpName = "名稱看起來是水冷泵，預設不納入；確定是風扇再開啟。";
+    public const string FanExcludedPumpLike = "首次偵測時轉速很高（≥2800 RPM，或 ≥95% 且 ≥1800 RPM），可能是水冷泵，預設不納入。";
+    public const string FanHiddenHeadersFormat = "已隱藏 {0} 個未接風扇的接頭";
+
+    public static string FanChipQuiet(double? percent) => $"靜音 {Percent(percent)}";
+    public static string FanChipSynced(double? percent) => $"同步 {Percent(percent)}";
 
     // ---- Settings (part 2, extra) ----
     public const string SettingTrayIconDisplay = "系統匣圖示顯示";

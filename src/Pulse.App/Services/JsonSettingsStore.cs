@@ -97,7 +97,14 @@ public sealed class JsonSettingsStore : ISettingsStore
         s.LowBatteryThresholdPercent = Math.Clamp(s.LowBatteryThresholdPercent, 1, 99);
         s.OpenRgbHost = string.IsNullOrWhiteSpace(s.OpenRgbHost) ? "127.0.0.1" : s.OpenRgbHost.Trim();
         s.HiddenDeviceIds ??= new List<string>();
+        if (!Enum.IsDefined(s.FanMode)) s.FanMode = FanMode.Individual;
+        s.SyncedFanPercent = double.IsFinite(s.SyncedFanPercent) ? Math.Clamp(s.SyncedFanPercent, 0, 100) : 50;
+        s.FanGroupExcludedIds = CleanIds(s.FanGroupExcludedIds);
+        s.FanGroupIncludedIds = CleanIds(s.FanGroupIncludedIds);
     }
+
+    private static List<string> CleanIds(List<string>? ids)
+        => ids is null ? new List<string>() : ids.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToList();
 
     private void TryBackupCorruptFile()
     {

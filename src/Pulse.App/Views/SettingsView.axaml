@@ -148,6 +148,31 @@
             </StackPanel>
         </Border>
 
+        <!-- 硬體記錄 -->
+        <Border Classes="card">
+            <StackPanel Spacing="6">
+                <TextBlock Classes="title" Margin="0,0,0,4" Text="{x:Static loc:Strings.SettingsTelemetry}" />
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingTelemetryEnabled}" />
+                        <TextBlock Classes="caption" Text="{x:Static loc:Strings.SettingTelemetryHint}" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" Classes="plain" IsChecked="{Binding TelemetryEnabled, Mode=TwoWay}" />
+                </Grid>
+                <Border Classes="divider" />
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Classes="caption" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               Text="{Binding TelemetryPath}" ToolTip.Tip="{Binding TelemetryPath}" Margin="0,0,8,0" />
+                    <Button Grid.Column="1" Classes="pill" Command="{Binding OpenTelemetryFolderCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource IconFolder}" Width="14" Height="14" />
+                            <TextBlock Text="{x:Static loc:Strings.OpenTelemetryFolder}" TextWrapping="NoWrap" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </StackPanel>
+        </Border>
+
         <!-- 關於 -->
         <Border Classes="card">
             <StackPanel Spacing="8">

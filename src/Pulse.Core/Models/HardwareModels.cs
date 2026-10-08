@@ -89,4 +89,7 @@ public sealed record HardwareMonitorStatus
     public bool FanControlAvailable { get; init; }
     /// <summary>Human readable hint for the UI (why something is missing and how to fix it).</summary>
     public string? Message { get; init; }
+
+    /// <summary>Set when the previous session ended without restoring fans it had put in manual mode (crash / forced kill).</summary>
+    public string? RecoveryNotice { get; init; }
 }

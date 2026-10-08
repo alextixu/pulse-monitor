@@ -20,6 +20,67 @@
             </Grid>
         </Border>
 
+        <!-- Previous session ended with fans still in manual mode -->
+        <Border Classes="banner warning" IsVisible="{Binding HasRecoveryNotice}">
+            <Grid ColumnDefinitions="Auto,*">
+                <PathIcon Grid.Column="0" Data="{StaticResource IconWarning}" Width="16" Height="16" Margin="0,0,10,0"
+                          Foreground="{DynamicResource BccWarningBrush}" VerticalAlignment="Top" />
+                <TextBlock Grid.Column="1" FontSize="12.5" Text="{Binding RecoveryNotice}" />
+            </Grid>
+        </Border>
+
+        <!-- Fan modes: 自動 / 靜音 / 全部同步 / 個別 -->
+        <Border Classes="card">
+            <StackPanel Spacing="12">
+                <Grid ColumnDefinitions="Auto,*">
+                    <Border Grid.Column="0" Classes="tile" Width="36" Height="36" CornerRadius="11" Background="{DynamicResource BccTealTintBrush}">
+                        <PathIcon Data="{StaticResource IconFan}" Width="18" Height="18" Foreground="{DynamicResource BccTealBrush}" />
+                    </Border>
+                    <TextBlock Grid.Column="1" Classes="title" Margin="10,0,0,0" VerticalAlignment="Center" Text="{x:Static loc:Strings.FanModesTitle}" />
+                </Grid>
+
+                <Border Classes="segmented-track" IsEnabled="{Binding ModesEnabled}">
+                    <UniformGrid Rows="1">
+                        <RadioButton Classes="segment" GroupName="FanModes" Content="{x:Static loc:Strings.FanModeAuto}"
+                                     IsChecked="{Binding Mode, Mode=TwoWay, Converter={x:Static conv:EqualsConverter.Instance}, ConverterParameter=Auto}" />
+                        <RadioButton Classes="segment" GroupName="FanModes" Content="{x:Static loc:Strings.FanModeQuiet}"
+                                     IsChecked="{Binding Mode, Mode=TwoWay, Converter={x:Static conv:EqualsConverter.Instance}, ConverterParameter=Quiet}" />
+                        <RadioButton Classes="segment" GroupName="FanModes" Content="{x:Static loc:Strings.FanModeSynced}"
+                                     IsChecked="{Binding Mode, Mode=TwoWay, Converter={x:Static conv:EqualsConverter.Instance}, ConverterParameter=Synced}" />
+                        <RadioButton Classes="segment" GroupName="FanModes" Content="{x:Static loc:Strings.FanModeIndividual}"
+                                     IsChecked="{Binding Mode, Mode=TwoWay, Converter={x:Static conv:EqualsConverter.Instance}, ConverterParameter=Individual}" />
+                    </UniformGrid>
+                </Border>
+
+                <TextBlock Classes="caption" Text="{Binding ModeDescription}" />
+
+                <!-- 靜音: live temperatures → duty, thresholds -->
+                <StackPanel Spacing="4" IsVisible="{Binding IsQuietMode}">
+                    <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding QuietLiveText}" />
+                    <TextBlock Classes="caption" FontSize="11" Text="{x:Static loc:Strings.FanQuietCurveLine}" />
+                    <TextBlock Classes="caption" FontSize="11" Text="{x:Static loc:Strings.FanQuietHandoffLine}" />
+                </StackPanel>
+
+                <!-- 全部同步: shared duty -->
+                <StackPanel Spacing="8" IsVisible="{Binding IsSyncedMode}" IsEnabled="{Binding ModesEnabled}">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <TextBlock Grid.Column="0" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,12,0" Text="{x:Static loc:Strings.FanSyncedLabel}" />
+                        <Slider Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                                Value="{Binding SyncedPercent, Mode=TwoWay}" />
+                        <TextBlock Grid.Column="2" Classes="value-sm" FontSize="14" Width="44" TextAlignment="Right" VerticalAlignment="Center" TextWrapping="NoWrap" Text="{Binding SyncedPercentText}" />
+                    </Grid>
+                    <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6">
+                        <Button Classes="chip" Command="{Binding SyncedPresetCommand}" CommandParameter="{x:Static vm:FanPresets.Quiet}" Content="{x:Static loc:Strings.FanPresetQuietLabel}" />
+                        <Button Classes="chip" Command="{Binding SyncedPresetCommand}" CommandParameter="{x:Static vm:FanPresets.Balanced}" Content="{x:Static loc:Strings.FanPresetBalancedLabel}" />
+                        <Button Classes="chip" Command="{Binding SyncedPresetCommand}" CommandParameter="{x:Static vm:FanPresets.Performance}" Content="{x:Static loc:Strings.FanPresetPerformanceLabel}" />
+                        <Button Classes="chip" Command="{Binding SyncedPresetCommand}" CommandParameter="{x:Static vm:FanPresets.Full}" Content="{x:Static loc:Strings.FanPresetFullLabel}" />
+                    </WrapPanel>
+                </StackPanel>
+
+                <TextBlock Classes="caption warning" FontSize="11" Text="{x:Static loc:Strings.FanModeUnavailable}" IsVisible="{Binding ShowModesUnavailable}" />
+            </StackPanel>
+        </Border>
+
         <!-- Empty state -->
         <Border Classes="card" MinHeight="220" IsVisible="{Binding IsEmpty}">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" Margin="8">
@@ -60,16 +121,27 @@
                                                 <StackPanel Grid.Column="1" Margin="12,0,10,0" VerticalAlignment="Center" Spacing="5">
                                                     <TextBlock Classes="title" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Text="{Binding Name}" ToolTip.Tip="{Binding Name}" />
                                                     <WrapPanel Orientation="Horizontal" ItemSpacing="5" LineSpacing="4">
-                                                        <controls:StatPill Tone="{Binding DutyTone}" Text="{Binding PercentText}" IsVisible="{Binding HasPercent}" />
+                                                        <controls:StatPill Tone="{Binding DutyTone}" Text="{Binding PercentText}" IsVisible="{Binding ShowDutyPill}" />
                                                         <controls:StatPill Tone="Neutral" Text="{x:Static loc:Strings.FanMonitorOnly}" IsVisible="{Binding IsMonitorOnly}" />
-                                                        <controls:StatPill Tone="Accent" Text="{x:Static loc:Strings.FanManualChip}" IsVisible="{Binding IsManual}" />
+                                                        <controls:StatPill Tone="Accent" Text="{x:Static loc:Strings.FanManualChip}" IsVisible="{Binding ShowManualChip}" />
+                                                        <controls:StatPill Tone="{Binding ModeChipTone}" Text="{Binding ModeChipText}" IsVisible="{Binding ShowModeChip}" />
                                                     </WrapPanel>
                                                 </StackPanel>
                                                 <TextBlock Grid.Column="2" Classes="value-sm" FontSize="18" TextWrapping="NoWrap" VerticalAlignment="Center" Text="{Binding RpmText}" />
                                             </Grid>
 
-                                            <!-- Controls -->
-                                            <StackPanel Spacing="8" IsVisible="{Binding CanControl}">
+                                            <!-- 靜音 / 全部同步: group membership -->
+                                            <StackPanel Spacing="6" IsVisible="{Binding ShowMemberToggle}">
+                                                <Border Classes="divider" />
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Grid.Column="0" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Text="{x:Static loc:Strings.FanGroupMember}" />
+                                                    <ToggleSwitch Grid.Column="1" Classes="plain" IsChecked="{Binding IsMember, Mode=TwoWay}" VerticalAlignment="Center" />
+                                                </Grid>
+                                                <TextBlock Classes="caption" FontSize="11" Text="{Binding MemberHint}" IsVisible="{Binding HasMemberHint}" />
+                                            </StackPanel>
+
+                                            <!-- Controls (個別 mode) -->
+                                            <StackPanel Spacing="8" IsVisible="{Binding ShowManualControls}">
                                                 <Border Classes="divider" />
                                                 <Grid ColumnDefinitions="*,Auto">
                                                     <TextBlock Grid.Column="0" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Text="{x:Static loc:Strings.FanManualControl}" />
@@ -100,5 +172,9 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
+
+        <!-- Headers that never reported a fan this session -->
+        <TextBlock Classes="caption" FontSize="11" HorizontalAlignment="Center" TextAlignment="Center" Margin="0,2,0,0"
+                   Text="{Binding HiddenText}" IsVisible="{Binding HasHiddenFans}" />
     </StackPanel>
 </UserControl>

@@ -52,5 +52,17 @@ public sealed class NullRgbController : IRgbController
 
     public Task SetAllAsync(RgbColor color, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+    public Task TurnOffAsync(int deviceIndex, CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task TurnOffAllAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task RestoreDefaultAsync(int deviceIndex, CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task RestoreAllDefaultsAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task SaveCurrentAsDefaultAsync(int deviceIndex, CancellationToken ct = default) => Task.CompletedTask;
+
+    public bool HasDefault(int deviceIndex) => false;
+
     public void Dispose() { }
 }

@@ -89,7 +89,8 @@ public sealed class FanModeController
     private readonly Dictionary<string, DateTimeOffset> _lastWrite = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _lastFailure = new(StringComparer.Ordinal);
     /// <summary>Quiet: fans currently handed back because of heat (or a missing temperature), until the profile's resume temperature.</summary>
-    private readonly HashSet<string> _handedOff = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _handedOff = new(StringComparer.Ordinal);
+    private readonly TemperatureSmoother _smoother = new(QuietFanCurve.SmoothingTime);
     private FanMode? _lastMode;
     private volatile bool _stopped;
 
@@ -240,19 +241,22 @@ public sealed class FanModeController
 
                 // Quiet.
                 var temp = isGpu ? GpuTempFor(fan, snapshot) : snapshot.Cpu?.PackageTempC;
-                if (temp is not { } t || !double.IsFinite(t))
+                if (temp is not { } raw || !double.IsFinite(raw))
                 {
-                    _handedOff.Add(fan.Id);
+                    _handedOff.TryAdd(fan.Id, now);
                     if (HeldByUs(fan.Id)) HandBack(fan.Id);
                     statuses[fan.Id] = Status(FanModeState.NoTemperature);
                     continue;
                 }
 
-                if (QuietFanCurve.ShouldHandOff(isGpu, t, _handedOff.Contains(fan.Id)))
+                // Curve and handoff follow the smoothed temperature; single raw spikes only matter at the emergency level.
+                var t = _smoother.Update(isGpu ? "gpu" : "cpu", raw, now);
+                TimeSpan? handedOffFor = _handedOff.TryGetValue(fan.Id, out var since) ? now - since : null;
+                if (QuietFanCurve.ShouldHandOff(isGpu, t, raw, handedOffFor))
                 {
-                    if (_handedOff.Add(fan.Id))
+                    if (_handedOff.TryAdd(fan.Id, now))
                     {
-                        _log.LogInformation("Quiet: fan {Fan} handed back to firmware at {Temp:0.#}°C", fan.Name, t);
+                        _log.LogInformation("Quiet: fan {Fan} handed back to firmware at {Temp:0.#}°C (raw {Raw:0.#}°C)", fan.Name, t, raw);
                     }
                     if (HeldByUs(fan.Id)) HandBack(fan.Id);
                     statuses[fan.Id] = Status(FanModeState.HandedOff, temp: t);

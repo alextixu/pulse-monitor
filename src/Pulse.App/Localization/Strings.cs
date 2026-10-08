@@ -241,8 +241,8 @@ public static class Strings
     public const string FanModeSyncedHint = "納入群組的風扇以相同轉速運轉。";
     public const string FanModeIndividualHint = "在下方逐一手動設定每個風扇。";
     public const string FanModeUnavailable = "需要系統管理員權限才能使用風扇模式；目前的選擇會保留。";
-    public const string FanQuietCurveLine = "50°C 以下維持最低轉速，50–70°C 逐步升到 60%";
-    public const string FanQuietHandoffLine = "75°C 以上交回自動控制，降到 68°C 後恢復靜音";
+    public const string FanQuietCurveLine = "CPU 75°C 以下維持最低轉速，75–80°C 升到 50%；顯示卡 50°C 以下最低，50–70°C 升到 60%";
+    public const string FanQuietHandoffLine = "CPU 80°C、顯示卡 75°C 以上交回自動控制，降到 72°C／68°C 後恢復靜音";
     public const string FanQuietWaiting = "等待溫度資料…";
     public const string FanBoardShort = "主機板";
     public const string FanGpuShort = "顯示卡";

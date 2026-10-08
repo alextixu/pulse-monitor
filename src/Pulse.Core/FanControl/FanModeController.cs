@@ -33,7 +33,7 @@ public enum FanModeState
     Quiet,
     /// <summary>Synced duty applied (<see cref="FanModeFanStatus.Percent"/>).</summary>
     Synced,
-    /// <summary>Quiet: too hot (≥ 75 °C, until ≤ 68 °C) → firmware.</summary>
+    /// <summary>Quiet: too hot (board ≥ 80 °C until ≤ 72 °C; GPU ≥ 75 °C until ≤ 68 °C) → firmware.</summary>
     HandedOff,
     /// <summary>Quiet: no source temperature → firmware.</summary>
     NoTemperature,
@@ -88,7 +88,7 @@ public sealed class FanModeController
     private readonly Dictionary<string, double> _controlled = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _lastWrite = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _lastFailure = new(StringComparer.Ordinal);
-    /// <summary>Quiet: fans currently handed back because of heat (or a missing temperature), until ≤ 68 °C.</summary>
+    /// <summary>Quiet: fans currently handed back because of heat (or a missing temperature), until the profile's resume temperature.</summary>
     private readonly HashSet<string> _handedOff = new(StringComparer.Ordinal);
     private FanMode? _lastMode;
     private volatile bool _stopped;
@@ -248,7 +248,7 @@ public sealed class FanModeController
                     continue;
                 }
 
-                if (t >= QuietFanCurve.HandoffAtC || (_handedOff.Contains(fan.Id) && t > QuietFanCurve.ResumeAtC))
+                if (QuietFanCurve.ShouldHandOff(isGpu, t, _handedOff.Contains(fan.Id)))
                 {
                     if (_handedOff.Add(fan.Id))
                     {

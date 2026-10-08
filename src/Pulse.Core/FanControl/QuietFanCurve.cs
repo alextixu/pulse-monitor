@@ -2,23 +2,27 @@ using Pulse.Core.Models;
 
 namespace Pulse.Core.FanControl;
 
+/// <summary>Thresholds of the Quiet curve for one temperature source.</summary>
+/// <param name="QuietUpToC">Up to this temperature the fan stays at <paramref name="FloorPercent"/>.</param>
+/// <param name="RampEndC">The curve reaches <paramref name="RampEndPercent"/> here and stays there.</param>
+/// <param name="HandoffAtC">At or above this the fan is handed back to the firmware…</param>
+/// <param name="ResumeAtC">…until the temperature is back at or below this (hysteresis).</param>
+public sealed record QuietCurveProfile(double QuietUpToC, double RampEndC, double RampEndPercent, double HandoffAtC, double ResumeAtC, double FloorPercent);
+
 /// <summary>
-/// The 靜音 (Quiet) temperature curve. Pure functions plus the constants the UI and README quote.
+/// The 靜音 (Quiet) temperature curves. Pure functions plus the constants the UI and README quote.
 /// <list type="bullet">
-/// <item>T ≤ 50 °C → quiet floor (max(fan min, 35 % board / 30 % GPU)).</item>
-/// <item>50–70 °C → linear from the floor to 60 %; above 70 °C the curve stays at 60 %.</item>
-/// <item>T ≥ 75 °C → the fan is handed back to the firmware until T ≤ 68 °C (hysteresis).</item>
+/// <item>Board fans (CPU package temperature): ≤ 75 °C quiet floor (35 %), 75–80 °C up to 50 %, ≥ 80 °C firmware until ≤ 72 °C.</item>
+/// <item>GPU fans (GPU core temperature): ≤ 50 °C floor (30 %), 50–70 °C up to 60 %, ≥ 75 °C firmware until ≤ 68 °C.</item>
 /// </list>
+/// The floor never goes below the fan's own minimum.
 /// </summary>
 public static class QuietFanCurve
 {
-    public const double QuietUpToC = 50;
-    public const double RampEndC = 70;
-    public const double RampEndPercent = 60;
-    public const double HandoffAtC = 75;
-    public const double ResumeAtC = 68;
-    public const double BoardFloorPercent = 35;
-    public const double GpuFloorPercent = 30;
+    /// <summary>CPU coolers / case fans: the user wants them slow as long as the CPU stays under 80 °C.</summary>
+    public static QuietCurveProfile Board { get; } = new(QuietUpToC: 75, RampEndC: 80, RampEndPercent: 50, HandoffAtC: 80, ResumeAtC: 72, FloorPercent: 35);
+
+    public static QuietCurveProfile Gpu { get; } = new(QuietUpToC: 50, RampEndC: 70, RampEndPercent: 60, HandoffAtC: 75, ResumeAtC: 68, FloorPercent: 30);
 
     /// <summary>Quiet writes are skipped unless the duty moves by at least this much…</summary>
     public const double MinStepPercent = 3;
@@ -26,22 +30,31 @@ public static class QuietFanCurve
     /// <summary>…and at most one write per fan per interval (handoffs are always immediate).</summary>
     public static readonly TimeSpan MinWriteInterval = TimeSpan.FromSeconds(4);
 
+    public static QuietCurveProfile ProfileFor(bool isGpuFan) => isGpuFan ? Gpu : Board;
+
     public static double FloorFor(FanInfo fan, bool isGpuFan)
-        => Math.Max(fan.MinPercent, isGpuFan ? GpuFloorPercent : BoardFloorPercent);
+        => Math.Max(fan.MinPercent, ProfileFor(isGpuFan).FloorPercent);
 
     /// <summary>Curve value for <paramref name="tempC"/> starting at <paramref name="floorPercent"/> (not clamped to a fan's max).</summary>
-    public static double TargetPercent(double tempC, double floorPercent)
+    public static double TargetPercent(QuietCurveProfile profile, double tempC, double floorPercent)
     {
-        var top = Math.Max(RampEndPercent, floorPercent);
-        if (tempC <= QuietUpToC) return floorPercent;
-        if (tempC >= RampEndC) return top;
-        var t = (tempC - QuietUpToC) / (RampEndC - QuietUpToC);
+        var top = Math.Max(profile.RampEndPercent, floorPercent);
+        if (tempC <= profile.QuietUpToC) return floorPercent;
+        if (tempC >= profile.RampEndC) return top;
+        var t = (tempC - profile.QuietUpToC) / (profile.RampEndC - profile.QuietUpToC);
         return floorPercent + t * (top - floorPercent);
     }
 
     /// <summary>Curve value for a specific fan, clamped to its reported min/max.</summary>
     public static double TargetFor(FanInfo fan, bool isGpuFan, double tempC)
-        => ClampToFan(fan, TargetPercent(tempC, FloorFor(fan, isGpuFan)));
+        => ClampToFan(fan, TargetPercent(ProfileFor(isGpuFan), tempC, FloorFor(fan, isGpuFan)));
+
+    /// <summary>True when the fan must be (or stay) with the firmware at <paramref name="tempC"/>.</summary>
+    public static bool ShouldHandOff(bool isGpuFan, double tempC, bool currentlyHandedOff)
+    {
+        var profile = ProfileFor(isGpuFan);
+        return tempC >= profile.HandoffAtC || (currentlyHandedOff && tempC > profile.ResumeAtC);
+    }
 
     public static double ClampToFan(FanInfo fan, double percent)
     {

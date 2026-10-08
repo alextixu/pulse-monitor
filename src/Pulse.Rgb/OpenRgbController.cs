@@ -39,6 +39,7 @@ public sealed class OpenRgbController : IRgbController
     private OpenRgbClient? _client;
     private Device[] _rawDevices = [];
     private RgbDevice[]? _devices;
+    private int _protocolVersion = MaxProtocolVersion;
     private volatile bool _disposed;
 
     // Stable per-device keys of the current raw list (index = OpenRGB device index); replaced atomically so
@@ -146,6 +147,7 @@ public sealed class OpenRgbController : IRgbController
             }
 
             var protocol = client.CommonProtocolVersion.Number;
+            _protocolVersion = (int)protocol;
             _logger.LogInformation("Connected to OpenRGB SDK server at {Host}:{Port} (protocol v{Protocol})", host, port, protocol);
 
             int deviceCount;
@@ -289,12 +291,8 @@ public sealed class OpenRgbController : IRgbController
                 }
             }
 
-            if (brightness is { } b)
-            {
-                // OpenRGB.NET 3.1.1's UpdateMode re-reads the mode from the server and has no brightness parameter,
-                // so brightness cannot be changed through this client version.
-                _logger.LogWarning("Brightness={Brightness} for mode {Mode} of OpenRGB device {Device} ignored: not supported by the OpenRGB.NET client", b, mode.Name, deviceIndex);
-            }
+            // OpenRGB.NET 3.1.1 cannot send brightness; the UPDATEMODE packet built by OpenRgbModePacket can (clamped there).
+            uint? sdkBrightness = brightness is { } b && raw.SupportsBrightness ? (uint)Math.Max(0, b) : null;
 
             Color[]? sdkColors = null;
             var paintLeds = false;
@@ -317,11 +315,9 @@ public sealed class OpenRgbController : IRgbController
                 }
             }
 
-            await RunAsync(() => { client.UpdateMode(device.Index, modeIndex, sdkSpeed, null, sdkColors); return true; }, RequestTimeout, ct).ConfigureAwait(false);
-            if (sdkSpeed is { } applied) raw.SetSpeed(applied);
-            if (sdkColors is not null) raw.SetColors(sdkColors);
+            await ApplyModeAsync(client, device.Index, modeIndex, sdkSpeed, null, sdkColors, sdkBrightness, ct).ConfigureAwait(false);
 
-            var updated = device with { ActiveModeIndex = modeIndex };
+            var updated = (CachedDevice(device.Index) ?? device) with { ActiveModeIndex = modeIndex };
             if (paintLeds && color is { } led)
             {
                 var colors = Repeat(led, device.LedCount);
@@ -407,13 +403,8 @@ public sealed class OpenRgbController : IRgbController
             var device = await RequireDeviceAsync(client, deviceIndex, token).ConfigureAwait(false);
 
             // Re-read the device: the raw list is not updated by LED writes, so it may not reflect what is lit now.
-            var fresh = await RunAsync(() => client.GetControllerData(device.Index), RequestTimeout, token).ConfigureAwait(false);
+            var fresh = await ReadBackAsync(client, device.Index, token).ConfigureAwait(false);
             var slot = device.Index;
-            if (slot >= _rawDevices.Length) throw StaleCache();
-            var raw = _rawDevices.ToArray();
-            raw[slot] = fresh;
-            _rawDevices = raw;
-            StoreDevice(Map(fresh) with { Index = device.Index });
 
             var keys = _deviceKeys;
             var key = slot < keys.Length ? keys[slot] : BaseKey(fresh);
@@ -506,9 +497,18 @@ public sealed class OpenRgbController : IRgbController
             return;
         }
 
-        await RunAsync(() => { client.UpdateMode(device.Index, off.Index); return true; }, RequestTimeout, ct).ConfigureAwait(false);
-        StoreDevice(device with { ActiveModeIndex = off.Index, Colors = new RgbColor[device.LedCount] });
-        _logger.LogDebug("OpenRGB device {Device} switched to its Off mode ({Mode})", device.Index, off.Index);
+        try
+        {
+            await ApplyModeAsync(client, device.Index, off.Index, ct: ct).ConfigureAwait(false);
+            StoreDevice((CachedDevice(device.Index) ?? device) with { ActiveModeIndex = off.Index, Colors = new RgbColor[device.LedCount] });
+            _logger.LogDebug("OpenRGB device {Device} switched to its Off mode ({Mode})", device.Index, off.Index);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Refused Off mode: Direct + black LEDs gives the same result.
+            _logger.LogInformation("OpenRGB device {Device}: Off mode refused ({Reason}); painting it black instead", device.Index, ex.Message);
+            await SetDeviceColorCoreAsync(client, CachedDevice(device.Index) ?? device, Black, ct).ConfigureAwait(false);
+        }
     }
 
     private async Task<RestoreOutcome> RestoreCoreAsync(OpenRgbClient client, RgbDevice device, CancellationToken ct)
@@ -537,8 +537,7 @@ public sealed class OpenRgbController : IRgbController
             return RestoreOutcome.NothingToRestore;
         }
 
-        await RunAsync(() => { client.UpdateMode(device.Index, effect.Index); return true; }, RequestTimeout, ct).ConfigureAwait(false);
-        StoreDevice(device with { ActiveModeIndex = effect.Index });
+        await ApplyModeAsync(client, device.Index, effect.Index, ct: ct).ConfigureAwait(false);
         _logger.LogInformation("OpenRGB device {Device} ({Name}) has no saved default; switched to firmware effect {Mode}", device.Index, device.Name, effect.Name);
         return RestoreOutcome.FallbackEffect;
     }
@@ -560,10 +559,7 @@ public sealed class OpenRgbController : IRgbController
         // UpdateMode requires exactly as many colours as the mode currently reports.
         var modeColors = rawMode.Colors.Length > 0 ? Fit(ParseColors(snapshot.ModeColors), rawMode.Colors.Length) : null;
 
-        await RunAsync(() => { client.UpdateMode(device.Index, modeIndex, speed, direction, modeColors); return true; }, RequestTimeout, ct).ConfigureAwait(false);
-        if (speed is { } appliedSpeed) rawMode.SetSpeed(appliedSpeed);
-        if (direction is { } appliedDirection) rawMode.SetDirection(appliedDirection);
-        if (modeColors is not null) rawMode.SetColors(modeColors);
+        await ApplyModeAsync(client, device.Index, modeIndex, speed, direction, modeColors, ct: ct).ConfigureAwait(false);
 
         var savedLeds = ParseColors(snapshot.LedColors);
         IReadOnlyList<RgbColor> cached = device.Colors;
@@ -656,10 +652,9 @@ public sealed class OpenRgbController : IRgbController
         if (staticMode is not null)
         {
             var raw = _rawDevices[device.Index].Modes[staticMode.Index];
-            var colors = Repeat(color, raw.Colors.Length);
-            await RunAsync(() => { client.UpdateMode(device.Index, staticMode.Index, null, null, colors); return true; }, RequestTimeout, ct).ConfigureAwait(false);
-            raw.SetColors(colors);
-            StoreDevice(device with { ActiveModeIndex = staticMode.Index, Colors = ToModel(Repeat(color, device.LedCount)) });
+            var colors = Repeat(color, Math.Max(1, raw.Colors.Length));
+            await ApplyModeAsync(client, device.Index, staticMode.Index, colors: colors, ct: ct).ConfigureAwait(false);
+            StoreDevice((CachedDevice(device.Index) ?? device) with { ActiveModeIndex = staticMode.Index, Colors = ToModel(Repeat(color, device.LedCount)) });
             return;
         }
 
@@ -674,17 +669,72 @@ public sealed class OpenRgbController : IRgbController
         StoreDevice(device with { Colors = ToModel(fallback) });
     }
 
-    /// <summary>Switches the device to <paramref name="mode"/> unless it is already active; returns the updated cache entry.</summary>
+    /// <summary>
+    /// Switches the device to <paramref name="mode"/> unless the server says it is already active (the cache alone is not
+    /// trusted: OpenRGB or another client may have changed the mode); returns the updated cache entry.
+    /// </summary>
     private async Task<RgbDevice> EnsureModeAsync(OpenRgbClient client, RgbDevice device, RgbMode mode, CancellationToken ct)
     {
-        if (device.ActiveModeIndex == mode.Index) return device;
-
-        await RunAsync(() => { client.UpdateMode(device.Index, mode.Index); return true; }, RequestTimeout, ct).ConfigureAwait(false);
-        _logger.LogDebug("OpenRGB device {Device} switched to mode {Mode}", device.Index, mode.Name);
-        var updated = device with { ActiveModeIndex = mode.Index };
-        StoreDevice(updated);
-        return updated;
+        var fresh = await ReadBackAsync(client, device.Index, ct).ConfigureAwait(false);
+        if (fresh.ActiveModeIndex != mode.Index)
+        {
+            await ApplyModeAsync(client, device.Index, mode.Index, ct: ct).ConfigureAwait(false);
+            _logger.LogDebug("OpenRGB device {Device} switched to mode {Mode}", device.Index, mode.Name);
+        }
+        return CachedDevice(device.Index) ?? device with { ActiveModeIndex = mode.Index };
     }
+
+    /// <summary>
+    /// Switches a device to a mode in a way OpenRGB 1.0 accepts and confirms it with a read-back.
+    /// Direct / Custom without parameters go through SETCUSTOMMODE; everything else through an UPDATEMODE packet with
+    /// valid direction / speed / brightness / colour values (<see cref="OpenRgbModePacket"/>). OpenRGB silently ignores a
+    /// mode it considers invalid, so the result is checked and an <see cref="InvalidOperationException"/> reports a refusal.
+    /// </summary>
+    private async Task<Device> ApplyModeAsync(OpenRgbClient client, int deviceIndex, int modeIndex,
+        uint? speed = null, Direction? direction = null, Color[]? colors = null, uint? brightness = null, CancellationToken ct = default)
+    {
+        if (deviceIndex >= _rawDevices.Length || modeIndex < 0 || modeIndex >= _rawDevices[deviceIndex].Modes.Length) throw StaleCache();
+        var mode = _rawDevices[deviceIndex].Modes[modeIndex];
+        var plainDirect = speed is null && direction is null && colors is null && brightness is null
+                          && mode.Flags.HasFlag(ModeFlags.HasPerLedColor)
+                          && (mode.Name.Equals("Direct", StringComparison.OrdinalIgnoreCase) || mode.Name.Equals("Custom", StringComparison.OrdinalIgnoreCase));
+
+        await RunAsync(() =>
+        {
+            if (plainDirect)
+                client.SetCustomMode(deviceIndex);
+            else if (!OpenRgbModePacket.TrySend(client, _protocolVersion, deviceIndex, modeIndex, mode, speed, direction, colors, brightness))
+                client.UpdateMode(deviceIndex, modeIndex, speed, direction, colors); // socket not reachable: best effort
+            return true;
+        }, RequestTimeout, ct).ConfigureAwait(false);
+
+        // UPDATEMODE is queued to the controller's own thread on the server, so the read-back may need a moment.
+        Device fresh = _rawDevices[deviceIndex];
+        for (var attempt = 0; attempt < 6; attempt++)
+        {
+            if (attempt > 0) await Task.Delay(150, ct).ConfigureAwait(false);
+            fresh = await ReadBackAsync(client, deviceIndex, ct).ConfigureAwait(false);
+            if (fresh.ActiveModeIndex == modeIndex) return fresh;
+        }
+
+        _logger.LogWarning("OpenRGB did not apply mode {Mode} (#{Index}) to device {Device}; it reports mode #{Active}",
+            mode.Name, modeIndex, deviceIndex, fresh.ActiveModeIndex);
+        throw new InvalidOperationException($"OpenRGB 沒有套用「{mode.Name}」模式（伺服器拒絕了這個設定）。");
+    }
+
+    /// <summary>Re-reads one device from the server and refreshes both caches with it.</summary>
+    private async Task<Device> ReadBackAsync(OpenRgbClient client, int deviceIndex, CancellationToken ct)
+    {
+        var fresh = await RunAsync(() => client.GetControllerData(deviceIndex), RequestTimeout, ct).ConfigureAwait(false);
+        if (deviceIndex >= _rawDevices.Length) throw StaleCache();
+        var raw = _rawDevices.ToArray();
+        raw[deviceIndex] = fresh;
+        _rawDevices = raw;
+        StoreDevice(Map(fresh) with { Index = deviceIndex });
+        return fresh;
+    }
+
+    private RgbDevice? CachedDevice(int deviceIndex) => _devices?.FirstOrDefault(d => d.Index == deviceIndex);
 
     /// <summary>Picks the per-LED mode ("Direct" preferred) or, failing that, a "Static" mode with a mode-specific colour.</summary>
     private (RgbMode? PerLed, RgbMode? Static) ResolveColorMode(RgbDevice device)

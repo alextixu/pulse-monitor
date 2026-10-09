@@ -86,6 +86,26 @@ public static class Strings
     public const string Power = "功耗";
     public const string HotSpot = "熱點";
     public const string VideoMemory = "顯示記憶體";
+    public const string Storage = "儲存裝置";
+    public const string UsedSpace = "已使用";
+    public const string HardDiskNotPolled = "傳統硬碟：為避免喚醒硬碟，不讀取溫度與狀態";
+    public const string StorageNoData = "這顆磁碟沒有回報溫度或其他資訊";
+    public static string ReadRate(double? bytesPerSecond) => $"讀取 {Rate(bytesPerSecond)}";
+    public static string WriteRate(double? bytesPerSecond) => $"寫入 {Rate(bytesPerSecond)}";
+    public static string DriveHealth(double? percent) => $"健康度 {Percent(percent)}";
+    public static string DataWritten(double? gigabytes) => gigabytes is { } g
+        ? (g >= 1024 ? $"已寫入 {g / 1024:0.0} TB" : $"已寫入 {g:0} GB")
+        : NotAvailable;
+
+    /// <summary>Bytes per second → "0 B/s", "512 KB/s", "1.2 MB/s", "1.05 GB/s".</summary>
+    public static string Rate(double? bytesPerSecond) => bytesPerSecond switch
+    {
+        null => NotAvailable,
+        < 1024 => $"{bytesPerSecond:0} B/s",
+        < 1024 * 1024 => $"{bytesPerSecond / 1024:0} KB/s",
+        < 1024d * 1024 * 1024 => $"{bytesPerSecond / 1024 / 1024:0.0} MB/s",
+        _ => $"{bytesPerSecond / 1024 / 1024 / 1024:0.00} GB/s",
+    };
     public const string OtherTemperatures = "其他溫度";
     public const string CpuTempUnavailable = "CPU 溫度需要系統管理員權限";
     public const string NoGpu = "未偵測到顯示卡";

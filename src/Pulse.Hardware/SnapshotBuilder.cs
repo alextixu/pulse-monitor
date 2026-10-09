@@ -50,7 +50,8 @@ internal static partial class SnapshotBuilder
     private const string PhysicalMemoryIdentifier = "/ram";
 
     /// <param name="allowControl">False reports every fan as monitor-only (no writable control), e.g. when not elevated.</param>
-    public static SnapshotBuildResult Build(IEnumerable<IHardware> roots, IReadOnlyDictionary<string, double> manualFans, bool allowControl = true)
+    public static SnapshotBuildResult Build(IEnumerable<IHardware> roots, IReadOnlyDictionary<string, double> manualFans, bool allowControl = true,
+        IReadOnlyList<DiskMetadata>? disks = null)
     {
         CpuInfo? cpu = null;
         var cpuTemperatureAvailable = false;
@@ -58,6 +59,7 @@ internal static partial class SnapshotBuilder
         IHardware? memoryHardware = null;
         var fans = new List<FanInfo>();
         var otherTemperatures = new List<TemperatureReading>();
+        var storages = new List<StorageInfo>();
         var bindings = new Dictionary<string, FanBinding>(StringComparer.Ordinal);
 
         foreach (var root in roots)
@@ -65,6 +67,10 @@ internal static partial class SnapshotBuilder
             var surfaced = false;
             switch (root.HardwareType)
             {
+                case HardwareType.Storage:
+                    storages.Add(MapStorage(root, disks));
+                    continue; // drives have their own cards; nothing else to collect
+
                 case HardwareType.Cpu when cpu is null:
                     cpu = MapCpu(root, out cpuTemperatureAvailable);
                     surfaced = true;
@@ -92,6 +98,7 @@ internal static partial class SnapshotBuilder
             Memory = memoryHardware is null ? null : MapMemory(memoryHardware),
             Fans = fans,
             OtherTemperatures = otherTemperatures,
+            Storages = storages,
             Timestamp = DateTimeOffset.Now,
         };
 
@@ -322,6 +329,76 @@ internal static partial class SnapshotBuilder
     /// <summary>Current value as double, or null when the sensor has not produced a (finite) reading.</summary>
     private static double? Value(ISensor sensor)
         => sensor.Value is { } v && float.IsFinite(v) ? v : null;
+
+    /// <summary>
+    /// One drive card. Sensor names differ between LHM storage back-ends, so values are matched by type and keywords:
+    /// Load "Used Space" / "Total Activity", Throughput "Read" / "Write" (B/s), Level "Percentage Used" (→ 100 − x) or
+    /// "Life" / "Health" (as is), Data "Written" / "Host Writes" (GB).
+    /// </summary>
+    private static StorageInfo MapStorage(IHardware drive, IReadOnlyList<DiskMetadata>? disks)
+    {
+        var meta = disks is null ? null : DiskMediaTypes.Find(drive.Name, disks);
+        double? used = null, activity = null, read = null, write = null, life = null, written = null;
+        foreach (var s in drive.Sensors)
+        {
+            if (Value(s) is not { } v) continue;
+            var name = s.Name;
+            switch (s.SensorType)
+            {
+                case SensorType.Load when name.Contains("Used", StringComparison.OrdinalIgnoreCase):
+                    used ??= v;
+                    break;
+                case SensorType.Load when name.Contains("Total", StringComparison.OrdinalIgnoreCase) || name.Contains("Activity", StringComparison.OrdinalIgnoreCase):
+                    activity ??= v;
+                    break;
+                case SensorType.Throughput when name.Contains("Read", StringComparison.OrdinalIgnoreCase):
+                    read ??= v;
+                    break;
+                case SensorType.Throughput when name.Contains("Write", StringComparison.OrdinalIgnoreCase):
+                    write ??= v;
+                    break;
+                case SensorType.Level when name.Contains("Percentage Used", StringComparison.OrdinalIgnoreCase):
+                    life ??= Math.Clamp(100 - v, 0, 100);
+                    break;
+                case SensorType.Level when name.Contains("Life", StringComparison.OrdinalIgnoreCase) || name.Contains("Health", StringComparison.OrdinalIgnoreCase):
+                    life ??= Math.Clamp(v, 0, 100);
+                    break;
+                case SensorType.Data when name.Contains("Written", StringComparison.OrdinalIgnoreCase) || name.Contains("Host Writes", StringComparison.OrdinalIgnoreCase):
+                    written ??= v;
+                    break;
+            }
+        }
+
+        var temp = StoragePrimaryTemperature(drive) is { } t && Value(t) is { } tv && tv > 0 ? tv : (double?)null;
+        return new StorageInfo
+        {
+            Id = drive.Identifier.ToString(),
+            Name = drive.Name.Trim(),
+            Bus = meta?.Bus,
+            IsHardDisk = meta?.IsHardDisk == true,
+            TemperatureC = temp,
+            UsedSpacePercent = used,
+            ActivityPercent = activity,
+            ReadBytesPerSecond = read,
+            WriteBytesPerSecond = write,
+            LifePercent = life,
+            DataWrittenGb = written,
+        };
+    }
+
+    /// <summary>One line per drive listing every sensor, for diagnostics (sensor names vary between back-ends).</summary>
+    public static IEnumerable<string> DescribeStorageSensors(IEnumerable<IHardware> roots)
+        => roots.Where(h => h.HardwareType == HardwareType.Storage).Select(h =>
+            $"{h.Name.Trim()} ({h.Identifier}): " + string.Join(", ", h.Sensors.Select(s => $"{s.SensorType}/{s.Name}={(Value(s) is { } v ? v.ToString("0.##") : "-")}")));
+
+    /// <summary>The drive's main temperature: "Composite Temperature", else "Temperature", else the first temperature sensor.</summary>
+    private static ISensor? StoragePrimaryTemperature(IHardware drive)
+    {
+        var temps = drive.Sensors.Where(s => s.SensorType == SensorType.Temperature && !IsThresholdSetting(s.Name)).ToList();
+        return temps.FirstOrDefault(s => s.Name.Contains("Composite", StringComparison.OrdinalIgnoreCase))
+               ?? temps.FirstOrDefault(s => s.Name.Equals("Temperature", StringComparison.OrdinalIgnoreCase))
+               ?? temps.FirstOrDefault();
+    }
 
     /// <summary>Sensor configuration published as a temperature, e.g. "Temperature Sensor Resolution", "Thermal Sensor High Limit".</summary>
     private static bool IsThresholdSetting(string name)

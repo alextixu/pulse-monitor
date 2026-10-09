@@ -205,6 +205,17 @@ public sealed class TelemetryLogger : IDisposable
             columns.Add(new($"{temp.Group} {temp.Name} °C", s => N(s.Snapshot.OtherTemperatures.FirstOrDefault(t => t.Id == id)?.ValueC)));
         }
 
+        // Drives (hard disks are never polled, so they would only add empty columns).
+        foreach (var drive in reference.Snapshot.Storages.Where(d => !d.IsHardDisk))
+        {
+            var id = drive.Id;
+            StorageInfo? Drive(Sample s) => s.Snapshot.Storages.FirstOrDefault(d => d.Id == id);
+            var name = $"儲存裝置 {drive.Name}";
+            columns.Add(new($"{name} °C", s => N(Drive(s)?.TemperatureC)));
+            columns.Add(new($"{name} 讀取 MB/s", s => N(Drive(s)?.ReadBytesPerSecond / 1024 / 1024, "0.0")));
+            columns.Add(new($"{name} 寫入 MB/s", s => N(Drive(s)?.WriteBytesPerSecond / 1024 / 1024, "0.0")));
+        }
+
         return columns;
     }
 

@@ -67,6 +67,8 @@ public sealed partial class SystemViewModel : TabViewModelBase
 
     public ObservableCollection<GpuItemViewModel> Gpus { get; } = new();
 
+    public ObservableCollection<StorageItemViewModel> Storages { get; } = new();
+
     public ObservableCollection<TemperatureItem> OtherTemperatures { get; } = new();
 
     public override string PlaceholderText => Strings.PlaceholderSystem;
@@ -85,7 +87,7 @@ public sealed partial class SystemViewModel : TabViewModelBase
 
     private void Apply(HardwareSnapshot snapshot)
     {
-        HasData = snapshot.Cpu is not null || snapshot.Gpus.Count > 0 || snapshot.Memory is not null;
+        HasData = snapshot.Cpu is not null || snapshot.Gpus.Count > 0 || snapshot.Memory is not null || snapshot.Storages.Count > 0;
 
         // CPU
         if (snapshot.Cpu is { } cpu)
@@ -124,8 +126,35 @@ public sealed partial class SystemViewModel : TabViewModelBase
             HasMemory = false;
         }
 
+        // Drives (keyed by id, in place)
+        SyncStorages(snapshot.Storages);
+
         // Other temperatures
         SyncTemperatures(snapshot.OtherTemperatures);
+    }
+
+    private void SyncStorages(IReadOnlyList<StorageInfo> drives)
+    {
+        var sameOrder = drives.Count == Storages.Count;
+        for (var i = 0; sameOrder && i < drives.Count; i++)
+        {
+            if (Storages[i].Id != drives[i].Id) sameOrder = false;
+        }
+
+        if (sameOrder)
+        {
+            for (var i = 0; i < drives.Count; i++) Storages[i].Update(drives[i]);
+            return;
+        }
+
+        var existing = Storages.ToDictionary(s => s.Id);
+        Storages.Clear();
+        foreach (var drive in drives)
+        {
+            if (!existing.TryGetValue(drive.Id, out var item)) item = new StorageItemViewModel(drive.Id);
+            item.Update(drive);
+            Storages.Add(item);
+        }
     }
 
     private void SyncCores(IReadOnlyList<double?> loads)
@@ -267,6 +296,65 @@ public sealed partial class GpuItemViewModel : ObservableObject
         PowerText = HasPower ? $"{gpu.PowerWatts:0} W" : null;
         HasClock = gpu.CoreClockMhz is not null;
         ClockText = HasClock ? $"{gpu.CoreClockMhz:0} MHz" : null;
+    }
+}
+
+/// <summary>One drive card (NVMe / SSD / HDD).</summary>
+public sealed partial class StorageItemViewModel : ObservableObject
+{
+    [ObservableProperty] private string _name = Strings.Storage;
+    [ObservableProperty] private string _kindText = Strings.Storage;
+    [ObservableProperty] private string _tempText = Strings.NotAvailable;
+    [ObservableProperty] private BccTone _tempTone = BccTone.Neutral;
+    [ObservableProperty] private bool _hasTemp;
+    [ObservableProperty] private bool _hasUsedSpace;
+    [ObservableProperty] private double _usedSpace;
+    [ObservableProperty] private string _usedSpaceText = Strings.NotAvailable;
+    [ObservableProperty] private bool _hasRates;
+    [ObservableProperty] private string _readText = string.Empty;
+    [ObservableProperty] private string _writeText = string.Empty;
+    [ObservableProperty] private bool _hasLife;
+    [ObservableProperty] private string _lifeText = string.Empty;
+    [ObservableProperty] private BccTone _lifeTone = BccTone.Neutral;
+    [ObservableProperty] private bool _hasWritten;
+    [ObservableProperty] private string _writtenText = string.Empty;
+    [ObservableProperty] private bool _showDetails;
+    [ObservableProperty] private string? _note;
+    [ObservableProperty] private bool _hasNote;
+
+    public StorageItemViewModel(string id) => Id = id;
+
+    public string Id { get; }
+
+    public void Update(StorageInfo drive)
+    {
+        Name = drive.Name;
+        KindText = drive.Bus is { Length: > 0 } bus
+            ? $"{Strings.Storage} · {bus}{(drive.IsHardDisk ? " HDD" : string.Empty)}"
+            : Strings.Storage;
+
+        HasTemp = drive.TemperatureC is not null;
+        TempText = Strings.Celsius(drive.TemperatureC);
+        TempTone = BccTones.ForStorageTemperature(drive.TemperatureC);
+
+        HasUsedSpace = drive.UsedSpacePercent is not null;
+        UsedSpace = Math.Clamp(drive.UsedSpacePercent ?? 0, 0, 100);
+        UsedSpaceText = Strings.Percent(drive.UsedSpacePercent);
+
+        HasRates = drive.ReadBytesPerSecond is not null || drive.WriteBytesPerSecond is not null;
+        ReadText = Strings.ReadRate(drive.ReadBytesPerSecond);
+        WriteText = Strings.WriteRate(drive.WriteBytesPerSecond);
+
+        HasLife = drive.LifePercent is not null;
+        LifeText = Strings.DriveHealth(drive.LifePercent);
+        LifeTone = drive.LifePercent switch { null => BccTone.Neutral, >= 50 => BccTone.Success, >= 20 => BccTone.Warning, _ => BccTone.Danger };
+
+        HasWritten = drive.DataWrittenGb is not null;
+        WrittenText = Strings.DataWritten(drive.DataWrittenGb);
+
+        ShowDetails = HasUsedSpace || HasRates || HasLife || HasWritten;
+        Note = drive.IsHardDisk ? Strings.HardDiskNotPolled : !HasTemp && !ShowDetails ? Strings.StorageNoData : null;
+        HasNote = Note is not null;
     }
 }
 

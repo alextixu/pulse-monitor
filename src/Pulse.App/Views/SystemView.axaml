@@ -177,6 +177,53 @@
             </StackPanel>
         </Border>
 
+        <!-- Drives -->
+        <ItemsControl ItemsSource="{Binding Storages}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Spacing="12" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:StorageItemViewModel">
+                    <Border Classes="card">
+                        <StackPanel Spacing="14">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Border Grid.Column="0" Classes="tile" Background="{DynamicResource BccPurpleTintBrush}">
+                                    <PathIcon Data="{StaticResource IconStorage}" Width="22" Height="22" Foreground="{DynamicResource BccPurpleBrush}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="12,0,10,0" VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock Classes="caption" Text="{Binding KindText}" />
+                                    <TextBlock Classes="title" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Text="{Binding Name}" ToolTip.Tip="{Binding Name}" />
+                                </StackPanel>
+                                <controls:StatPill Grid.Column="2" VerticalAlignment="Center" Icon="{StaticResource IconThermometer}"
+                                                   Tone="{Binding TempTone}" Text="{Binding TempText}" IsVisible="{Binding HasTemp}" />
+                            </Grid>
+
+                            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowDetails}">
+                                <controls:RingGauge Grid.Column="0" Width="80" Height="80" Thickness="8" ColorMode="Load" Value="{Binding UsedSpace}"
+                                                    VerticalAlignment="Center" IsVisible="{Binding HasUsedSpace}">
+                                    <StackPanel>
+                                        <TextBlock FontSize="18" FontWeight="Bold" TextWrapping="NoWrap" HorizontalAlignment="Center" Text="{Binding UsedSpaceText}" />
+                                        <TextBlock Classes="caption" FontSize="9.5" HorizontalAlignment="Center" Text="{x:Static loc:Strings.UsedSpace}" />
+                                    </StackPanel>
+                                </controls:RingGauge>
+
+                                <WrapPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Orientation="Horizontal" ItemSpacing="5" LineSpacing="5">
+                                    <controls:StatPill Tone="Accent" Text="{Binding ReadText}" IsVisible="{Binding HasRates}" />
+                                    <controls:StatPill Tone="Purple" Text="{Binding WriteText}" IsVisible="{Binding HasRates}" />
+                                    <controls:StatPill Tone="{Binding LifeTone}" Text="{Binding LifeText}" IsVisible="{Binding HasLife}" />
+                                    <controls:StatPill Tone="Neutral" Text="{Binding WrittenText}" IsVisible="{Binding HasWritten}" />
+                                </WrapPanel>
+                            </Grid>
+
+                            <TextBlock Classes="caption" Text="{Binding Note}" IsVisible="{Binding HasNote}" />
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
         <!-- Other temperatures -->
         <Expander Classes="card" IsVisible="{Binding HasOtherTemperatures}" IsExpanded="True" HorizontalAlignment="Stretch">
             <Expander.Header>

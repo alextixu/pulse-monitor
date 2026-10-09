@@ -36,6 +36,13 @@ public static class BccTones
         return t < 60 ? BccTone.Success : t < 80 ? BccTone.Warning : BccTone.Danger;
     }
 
+    /// <summary>Drives throttle earlier than CPUs: &lt;55 success, 55–69 warning, ≥70 danger; null → neutral.</summary>
+    public static BccTone ForStorageTemperature(double? celsius)
+    {
+        if (celsius is not { } t) return BccTone.Neutral;
+        return t < 55 ? BccTone.Success : t < 70 ? BccTone.Warning : BccTone.Danger;
+    }
+
     /// <summary>&lt;60 accent, 60–84 warning, ≥85 danger; null → neutral.</summary>
     public static BccTone ForLoad(double? percent)
     {

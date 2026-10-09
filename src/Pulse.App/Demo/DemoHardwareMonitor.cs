@@ -161,8 +161,24 @@ public sealed class DemoHardwareMonitor : IHardwareMonitor
                 {
                     new TemperatureReading("demo:temp:mb", "主機板", BoardGroup, Clamp(38 + Jitter(1), 20, 90)),
                     new TemperatureReading("demo:temp:pch", "晶片組", BoardGroup, Clamp(47 + Jitter(1), 20, 90)),
-                    new TemperatureReading("demo:temp:ssd", "Samsung 990 PRO", "儲存裝置", Clamp(44 + Jitter(1.5), 20, 90)),
                     new TemperatureReading("demo:temp:vrm", "VRM", BoardGroup, Clamp(51 + Jitter(2), 20, 110)),
+                },
+                Storages = new[]
+                {
+                    new StorageInfo
+                    {
+                        Id = "demo:nvme0", Name = "Samsung SSD 990 PRO 2TB", Bus = "NVMe",
+                        TemperatureC = Clamp(44 + Jitter(1.5), 20, 90), UsedSpacePercent = 62.4,
+                        ReadBytesPerSecond = Math.Max(0, 180e6 + Jitter(60e6)), WriteBytesPerSecond = Math.Max(0, 24e6 + Jitter(10e6)),
+                        LifePercent = 98, DataWrittenGb = 18_350,
+                    },
+                    new StorageInfo
+                    {
+                        Id = "demo:usb0", Name = "ADATA SX8200PNP", Bus = "USB",
+                        TemperatureC = Clamp(36 + Jitter(1), 20, 90), UsedSpacePercent = 31,
+                        ReadBytesPerSecond = 0, WriteBytesPerSecond = 0,
+                    },
+                    new StorageInfo { Id = "demo:hdd0", Name = "ST2000LX001-1RG174", Bus = "SATA", IsHardDisk = true },
                 },
                 Timestamp = DateTimeOffset.Now,
             };

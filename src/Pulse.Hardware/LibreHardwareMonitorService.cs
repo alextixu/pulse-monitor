@@ -53,6 +53,7 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
     // (the package ships Windows runtimes only) surfaces as Unsupported instead of a constructor failure.
     private Computer? _computer;                                     // guarded by _lhmLock
     private UpdateVisitor? _updateVisitor;                           // guarded by _lhmLock
+    private IReadOnlyList<DiskMetadata> _disks = Array.Empty<DiskMetadata>(); // set once with the visitor
     private Dictionary<string, FanBinding> _fanBindings = new();     // guarded by _lhmLock
     private HardwareSnapshot? _lastSnapshot;                         // guarded by _lhmLock
     private Task? _initTask;                                         // guarded by _initLock
@@ -117,7 +118,7 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
                 try
                 {
                     computer.Accept(visitor);
-                    var result = SnapshotBuilder.Build(computer.Hardware, _manualFans, _controlAllowed);
+                    var result = SnapshotBuilder.Build(computer.Hardware, _manualFans, _controlAllowed, _disks);
                     _fanBindings = result.FanBindings;
                     _lastSnapshot = result.Snapshot;
                     return result.Snapshot;
@@ -361,12 +362,18 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
                 IsControllerEnabled = true,
                 IsMemoryEnabled = true,
                 IsPsuEnabled = true,
-                IsStorageEnabled = false,
+                // NVMe / SSD temperatures; hard disks are skipped by the visitor so SMART reads never spin them up.
+                IsStorageEnabled = true,
                 IsNetworkEnabled = false,
                 IsBatteryEnabled = false,
             };
             _computer = computer;
-            _updateVisitor ??= new UpdateVisitor(_logger);
+            if (_updateVisitor is null)
+            {
+                _disks = DiskMediaTypes.Read(_logger);
+                var disks = _disks;
+                _updateVisitor = new UpdateVisitor(_logger, drive => DiskMediaTypes.Find(drive.Name, disks)?.IsHardDisk == true);
+            }
             computer.Open();
 
             if (_disposed != 0 || cancellationToken.IsCancellationRequested)
@@ -377,9 +384,13 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
             {
                 // First refresh decides what this machine exposes (CPU temperatures need the kernel driver).
                 computer.Accept(_updateVisitor);
-                result = SnapshotBuilder.Build(computer.Hardware, _manualFans, _controlAllowed);
+                result = SnapshotBuilder.Build(computer.Hardware, _manualFans, _controlAllowed, _disks);
                 _fanBindings = result.FanBindings;
                 _lastSnapshot = result.Snapshot;
+                foreach (var line in SnapshotBuilder.DescribeStorageSensors(computer.Hardware))
+                {
+                    _logger.LogInformation("Storage sensors: {Drive}", line);
+                }
 
                 recoveryNotice = RecoverFromPreviousSessionLocked();
                 orphanedIds = _orphaned.ToList();

@@ -57,14 +57,34 @@ public sealed record FanInfo
 
 public sealed record TemperatureReading(string Id, string Name, string Group, double ValueC);
 
+/// <summary>One drive (NVMe / SSD / HDD). Values are null when the drive does not report them or is not polled.</summary>
+public sealed record StorageInfo
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    /// <summary>"NVMe", "SATA", "USB", … from Windows' storage metadata; null when unknown.</summary>
+    public string? Bus { get; init; }
+    /// <summary>Rotating hard disk: never queried (SMART reads could spin it up).</summary>
+    public bool IsHardDisk { get; init; }
+    public double? TemperatureC { get; init; }
+    public double? UsedSpacePercent { get; init; }
+    public double? ActivityPercent { get; init; }
+    public double? ReadBytesPerSecond { get; init; }
+    public double? WriteBytesPerSecond { get; init; }
+    /// <summary>Remaining life 0..100 (NVMe: 100 − "Percentage Used").</summary>
+    public double? LifePercent { get; init; }
+    public double? DataWrittenGb { get; init; }
+}
+
 public sealed record HardwareSnapshot
 {
     public CpuInfo? Cpu { get; init; }
     public IReadOnlyList<GpuInfo> Gpus { get; init; } = Array.Empty<GpuInfo>();
     public MemoryInfo? Memory { get; init; }
     public IReadOnlyList<FanInfo> Fans { get; init; } = Array.Empty<FanInfo>();
-    /// <summary>Motherboard / storage / other temperatures not already covered by CPU & GPU.</summary>
+    /// <summary>Motherboard / memory / other temperatures not already covered by CPU, GPU and storage.</summary>
     public IReadOnlyList<TemperatureReading> OtherTemperatures { get; init; } = Array.Empty<TemperatureReading>();
+    public IReadOnlyList<StorageInfo> Storages { get; init; } = Array.Empty<StorageInfo>();
     public DateTimeOffset Timestamp { get; init; } = DateTimeOffset.Now;
 
     public static HardwareSnapshot Empty { get; } = new();

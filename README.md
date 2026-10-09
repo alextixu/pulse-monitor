@@ -39,7 +39,7 @@
 | 分頁 | 內容 |
 |---|---|
 | **裝置** | 所有回報電量的裝置：藍牙 / 藍牙 LE、Logitech（Unifying、LIGHTSPEED、Bolt 接收器與 USB / 藍牙直連）、ASUS ROG 無線鍵盤 / 滑鼠、筆電內建電池。顯示電量環、連線方式、狀態（充電中 / 電量低 / 休眠中 / 未連線）。低電量時跳出提醒 |
-| **系統** | CPU 使用率（含每個邏輯核心）、Package 溫度、時脈、功耗；每張 GPU 的使用率、核心 / 熱點溫度、VRAM、風扇、功耗、時脈；記憶體；主機板其他溫度 |
+| **系統** | CPU 使用率（含每個邏輯核心）、Package 溫度、時脈、功耗；每張 GPU 的使用率、核心 / 熱點溫度、VRAM、風扇、功耗、時脈；記憶體；主機板其他溫度；每顆磁碟一張卡片：溫度、已使用空間、讀寫速度、健康度、累計寫入（NVMe / SSD，含 USB 外接盒，視晶片支援；傳統硬碟不讀取） |
 | **燈光** | 透過 OpenRGB 控制主機板、記憶體、顯示卡、鍵鼠等 RGB：一鍵全部套色、每個裝置的模式 / 顏色 / 速度 / 分區顏色；**關燈**（單一裝置或全部）與**還原預設**（回到 Pulse 第一次偵測到裝置時的燈光狀態） |
 | **風扇** | 依主機板 / 顯示卡分組列出風扇轉速（沒接風扇的接頭自動隱藏）；四種**風扇模式**：**自動**（全部交回 BIOS / 驅動）、**靜音**（依 CPU / GPU 溫度的低噪音曲線，過熱自動交回 BIOS）、**全部同步**（所有風扇同一轉速）、**個別**（每個風扇手動模式、滑桿與「靜音 / 平衡 / 效能 / 全速」預設）。水冷泵會被自動排除 |
 | **設定** | 主題、開機自動啟動、啟動時自動提權、托盤圖示顯示內容、更新頻率、OpenRGB 主機 / 連接埠與「使用內建 OpenRGB」、低電量提醒門檻、每秒硬體記錄 |
@@ -219,6 +219,7 @@ ROG 無線鍵盤（如 Falchion）的 2.4 GHz 接收器會提供一個廠商 HID
 - 每次快照以 `IVisitor` 走訪整棵感測器樹並呼叫 `Update()`，一次走訪就組出 `HardwareSnapshot`（約 120 ms）。Alder Lake 的 P-core / E-core 與 `Core #n Thread #m` 命名都有處理。
 - **風扇控制**：把 `SensorType.Fan`（轉速）與同一硬體上相同索引的 `SensorType.Control`（PWM 工作週期）配對，再透過 `IControl.SetSoftware(%)` 設定轉速、`SetDefault()` 交回韌體曲線。數值會限制在硬體回報的範圍內（例如 NVIDIA 最低 30 %）。程式結束時會還原所有被改過的風扇。
 - 所有 LHM 呼叫都用同一把鎖序列化，因為 LHM 不是執行緒安全的。
+- **磁碟卡片**：開啟 LHM 的儲存裝置監控，每顆磁碟對應一張卡片（`HardwareSnapshot.Storages`）。各磁碟後端的感測器名稱不同，因此用類型加關鍵字對應：溫度取 NVMe 的 `Composite Temperature`（沒有時取 `Temperature`）；已使用空間取 Load「Used Space」；讀寫速度取 Throughput「Read / Write Rate」；健康度取 Level「Life」，或以 100 −「Percentage Used」換算；累計寫入取 Data「Data Written」。介面類型（NVMe / SATA / USB）與是否為 HDD 來自 Windows 的儲存中繼資料（`MSFT_PhysicalDisk`），查詢它不會對磁碟送出任何命令；型號比對時忽略空格與連字號（Windows 回報「ADATA SX 8200PNP」，LHM 回報「ADATA SX8200PNP」）。SMART 查詢較慢，所以磁碟最多每 10 秒更新一次；**傳統硬碟（HDD）不讀取**，因為 SMART 查詢可能把休眠中的硬碟喚醒，卡片上會說明原因。磁碟溫度門檻比 CPU 嚴格（&lt; 55 °C 綠、55–69 °C 橘、≥ 70 °C 紅）。啟動時記錄檔會列出每顆磁碟的所有感測器（`Storage sensors:`），方便對照新機型。每秒記錄也包含每顆磁碟的溫度與讀寫 MB/s。
 
 未以管理員執行時，狀態會顯示為「降級」，並在介面上提供「以系統管理員身分重新啟動」（`ShellExecute` + `runas`，帶 `--elevated-relaunch` 參數避免重複提權）。
 

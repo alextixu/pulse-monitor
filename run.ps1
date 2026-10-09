@@ -1,4 +1,4 @@
-# 建置並以一般權限啟動 Pulse（CPU 溫度與風扇控制需要系統管理員，請改用 run-admin.ps1）
+﻿# 建置並以一般權限啟動 Pulse（CPU 溫度與風扇控制需要系統管理員，請改用 run-admin.ps1）
 param(
     [switch]$Demo,        # 使用示範資料，不碰硬體
     [switch]$Minimized,   # 啟動後只顯示托盤圖示

@@ -1,4 +1,4 @@
-# 準備要和 Pulse 一起打包的 OpenRGB（放到 third_party\OpenRGB，此資料夾不進 git）。
+﻿# 準備要和 Pulse 一起打包的 OpenRGB（放到 third_party\OpenRGB，此資料夾不進 git）。
 # 建置 / 發行 Pulse.App 時，若 third_party\OpenRGB\OpenRGB.exe 存在，會自動複製到輸出資料夾的 OpenRGB\。
 #
 #   .\tools\fetch-openrgb.ps1                         # 從已安裝的 OpenRGB（C:\Program Files\OpenRGB）複製

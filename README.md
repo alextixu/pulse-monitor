@@ -131,6 +131,15 @@ cd pulse-monitor
 dotnet publish src\Pulse.App -c Release -r win-x64 --self-contained false -o publish\win-x64
 ```
 
+登入時自動以系統管理員身分啟動（工作排程器，不會每次跳 UAC）：
+
+```powershell
+.\tools\install-pulse.ps1              # 註冊「Pulse」排程工作並啟動 publish\win-x64\Pulse.exe --minimized
+.\tools\install-pulse.ps1 -Uninstall   # 移除（先用 Pulse.exe --quit 關閉）
+```
+
+建議用這個方式長期執行：由排程服務啟動的 Pulse 不屬於其他程式。實際發生過的情況是，從 Microsoft Store 版應用程式（例如 Claude 桌面版）的終端機啟動 Pulse 時，Windows 會把 Pulse 當成該套件的一部分：套件更新時連同 Pulse 一起被強制關閉（風扇因此停在當下的轉速），設定檔與登錄機碼也會被導向到套件自己的資料夾。更新 Pulse 時先 `Pulse.exe --quit`，重新 `dotnet publish` 後執行 `schtasks /run /tn Pulse`。
+
 `third_party\OpenRGB\` 不進 git；有這個資料夾時，建置與發行會自動把它連同 `NOTICE.md`、`LICENSE-GPL-2.0.txt` 放到輸出資料夾的 `OpenRGB\`。沒有的話 Pulse 照常建置，只是不附帶 OpenRGB。
 
 設定檔在 `%APPDATA%\Pulse\settings.json`，記錄檔在 `%LOCALAPPDATA%\Pulse\logs\app.log`，每秒硬體記錄在 `%LOCALAPPDATA%\Pulse\logs\telemetry.csv`。

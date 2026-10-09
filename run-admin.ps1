@@ -1,4 +1,4 @@
-# 建置並以「系統管理員」身分啟動 Pulse（會跳出 UAC 提示）
+﻿# 建置並以「系統管理員」身分啟動 Pulse（會跳出 UAC 提示）
 # 需要管理員權限才能讀取 CPU 溫度（PawnIO 驅動）與控制主機板 / 顯示卡風扇。
 param(
     [string]$Configuration = 'Debug'

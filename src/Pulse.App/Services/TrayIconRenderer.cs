@@ -53,8 +53,17 @@ public sealed class TrayIconRenderer
         _typeface = new Lazy<SKTypeface>(LoadTypeface);
     }
 
-    /// <summary>Decides what to draw for the given summary and mode (pure function, any thread).</summary>
+    /// <summary>
+    /// Decides what to draw for the given summary and mode (pure function, any thread). The ring fraction is rounded to
+    /// whole percent — a 32 px ring cannot show more — so equal-looking icons compare equal and can be cached.
+    /// </summary>
     public static TrayIconContent Build(TraySummary summary, TrayIconMode mode)
+    {
+        var content = BuildCore(summary, mode);
+        return content.Fraction is { } f ? content with { Fraction = Math.Round(Math.Clamp(f, 0, 1), 2) } : content;
+    }
+
+    private static TrayIconContent BuildCore(TraySummary summary, TrayIconMode mode)
     {
         switch (mode)
         {
@@ -85,8 +94,32 @@ public sealed class TrayIconRenderer
 
     public static TrayTone TemperatureTone(double celsius) => celsius < 60 ? TrayTone.Good : celsius <= 80 ? TrayTone.Warning : TrayTone.Danger;
 
-    /// <summary>Renders the content to a WindowIcon (PNG in memory). Never throws.</summary>
+    /// <summary>
+    /// Each WindowIcon owns native icon handles (GDI / USER objects) that are only released when the GC finalizes it.
+    /// Creating a fresh icon on every change (CPU load changes every second) exhausted the 10 000-object per-process
+    /// quota after ~29 h ("系統資源不足"), so icons are cached by content and reused; the set of distinct icons is small.
+    /// </summary>
+    private readonly Dictionary<(TrayIconContent Content, int Size), WindowIcon> _cache = new();
+
+    /// <summary>Safety valve: more distinct icons than any mode can produce means something is off; start over.</summary>
+    private const int MaxCachedIcons = 1024;
+
+    /// <summary>Returns the (cached) WindowIcon for the content. Never throws. Call from the UI thread.</summary>
     public WindowIcon CreateIcon(TrayIconContent content, int size = DefaultSize)
+    {
+        if (_cache.TryGetValue((content, size), out var cached)) return cached;
+        if (_cache.Count >= MaxCachedIcons)
+        {
+            _log.LogWarning("Tray icon cache reached {Count} entries; clearing it", _cache.Count);
+            _cache.Clear();
+        }
+
+        var icon = Render(content, size);
+        _cache[(content, size)] = icon;
+        return icon;
+    }
+
+    private WindowIcon Render(TrayIconContent content, int size)
     {
         try
         {

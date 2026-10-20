@@ -216,7 +216,9 @@ public sealed class FanModeController
                 {
                     var raw = isGpu ? GpuTempFor(fan, snapshot) : snapshot.Cpu?.PackageTempC;
                     double? smoothed = raw is { } r && double.IsFinite(r) ? _smoother.Update(isGpu ? "gpu" : "cpu", r, now) : null;
-                    var pump = exclusion is FanExclusion.PumpName or FanExclusion.PumpLike;
+                    // Only fans *named* as pumps run flat out. The RPM heuristic also matches small high-speed fans:
+                    // on the test machine "Fan #6" (a 40 mm Noctua) looked pump-like, yet its BIOS curve ran it at 2 %.
+                    var pump = exclusion is FanExclusion.PumpName;
                     var emergency = raw is { } rr && rr >= QuietFanCurve.ProfileFor(isGpu).EmergencyC;
                     var target = QuietFanCurve.ClampToFan(fan, emergency ? 100 : QuietFanCurve.StandInPercent(smoothed, pump));
                     var shown = target;

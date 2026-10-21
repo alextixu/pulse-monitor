@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>SpikeTray</AssemblyName>
+    <RootNamespace>SpikeTray</RootNamespace>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Baseline run: ignore runtimeconfig.template.json (it only carries the "lean" knobs). -->
+    <UserRuntimeConfig Condition="'$(Lean)' != 'true'">_no_runtimeconfig_template_</UserRuntimeConfig>
+  </PropertyGroup>
+
+  <!-- Second run: dotnet build -c Release -p:Lean=true -->
+  <PropertyGroup Condition="'$(Lean)' == 'true'">
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <EventSourceSupport>false</EventSourceSupport>
+    <AutoreleasePoolSupport>false</AutoreleasePoolSupport>
+    <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+    <!-- System.GC.ConserveMemory=5 comes from runtimeconfig.template.json (default UserRuntimeConfig). -->
+    <DefineConstants>$(DefineConstants);LEAN</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="9.0.*" />
+  </ItemGroup>
+
+</Project>

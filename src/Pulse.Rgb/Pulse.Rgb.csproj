@@ -15,4 +15,8 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.20" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Pulse.Core.Tests" />
+  </ItemGroup>
+
 </Project>

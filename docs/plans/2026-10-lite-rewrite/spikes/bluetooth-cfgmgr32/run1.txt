@@ -1,0 +1,792 @@
+SpikeBtBattery  2026-10-21 03:41:13  .NET 9.0.16  Microsoft Windows 10.0.26200  elevated=False
+sizeof: DEVPROPKEY=20 DEVPROPCOMPKEY=32 DEVPROPERTY=48 FILTER_EXPRESSION=56 DEV_OBJECT=32 (expected 20/32/48/56/32 on x64)
+Loaded assemblies: SpikeBtBattery, System.Collections, System.Console, System.Linq, System.Private.CoreLib, System.Runtime, System.Runtime.InteropServices, System.Security.Claims, System.Security.Principal.Windows, System.Threading
+
+====================================================================================================
+1. CM_Get_Device_ID_ListW per enumerator (FILTER_ENUMERATOR; with and without FILTER_PRESENT)
+====================================================================================================
+[BTHENUM] flags=ENUMERATOR|PRESENT cr=0x00 count=3 (1.55 ms)
+    BTHENUM\Dev_FC039F42E11F\7&30660270&0&BluetoothDevice_FC039F42E11F
+    BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000
+    BTHENUM\{0000110e-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000
+[BTHENUM] flags=ENUMERATOR cr=0x00 count=3 (0.20 ms)
+    BTHENUM\Dev_FC039F42E11F\7&30660270&0&BluetoothDevice_FC039F42E11F
+    BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000
+    BTHENUM\{0000110e-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000
+[BTHLE] flags=ENUMERATOR|PRESENT cr=0x00 count=1 (0.47 ms)
+    BTHLE\Dev_686ce645e1ad\7&b8081d1&0&686ce645e1ad
+[BTHLE] flags=ENUMERATOR cr=0x00 count=1 (0.17 ms)
+    BTHLE\Dev_686ce645e1ad\7&b8081d1&0&686ce645e1ad
+[BTH] flags=ENUMERATOR|PRESENT cr=0x00 count=4 (0.52 ms)
+    BTH\MS_BTHLE\6&29d56e15&0&3
+    BTH\MS_BTHBRB\6&29d56e15&0&1
+    BTH\MS_RFCOMM\6&29d56e15&0&0
+    BTH\MS_BTHPAN\6&29d56e15&0&2
+[BTH] flags=ENUMERATOR cr=0x00 count=4 (0.15 ms)
+    BTH\MS_BTHLE\6&29d56e15&0&3
+    BTH\MS_BTHBRB\6&29d56e15&0&1
+    BTH\MS_RFCOMM\6&29d56e15&0&0
+    BTH\MS_BTHPAN\6&29d56e15&0&2
+[BTHLEDevice] flags=ENUMERATOR|PRESENT cr=0x00 count=6 (0.38 ms)
+    BTHLEDevice\{00001812-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0016
+    BTHLEDevice\{00001801-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0008
+    BTHLEDevice\{0000180a-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0009
+    BTHLEDevice\{00000001-5f60-4c4f-9c83-a7953298d40d}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0024
+    BTHLEDevice\{0000180f-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0012
+    BTHLEDevice\{00001800-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0001
+[BTHLEDevice] flags=ENUMERATOR cr=0x00 count=6 (0.15 ms)
+    BTHLEDevice\{00001812-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0016
+    BTHLEDevice\{00001801-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0008
+    BTHLEDevice\{0000180a-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0009
+    BTHLEDevice\{00000001-5f60-4c4f-9c83-a7953298d40d}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0024
+    BTHLEDevice\{0000180f-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0012
+    BTHLEDevice\{00001800-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0001
+[BTHHFENUM] flags=ENUMERATOR|PRESENT cr=0x00 count=0 (0.33 ms)
+[BTHHFENUM] flags=ENUMERATOR cr=0x00 count=0 (0.13 ms)
+
+====================================================================================================
+2. Device node dump: BTHENUM + BTHLE (all, phantoms located with CM_LOCATE_DEVNODE_PHANTOM)
+====================================================================================================
+
+--- BTHENUM\Dev_FC039F42E11F\7&30660270&0&BluetoothDevice_FC039F42E11F
+    devInst=0x00000001 locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x0180600A [DRIVER_LOADED|STARTED|DISABLEABLE|REMOVABLE|NT_ENUMERATOR|NT_DRIVER] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=63
+    Device_DeviceDesc                        STRING         "藍牙裝置"
+    Device_HardwareIds                       STRING_LIST    ["BTHENUM\Dev_FC039F42E11F"]
+    Device_CompatibleIds                     STRING_LIST    ["BTHENUM\GENERIC_DEVICE"]
+    Device_Class                             STRING         "Bluetooth"
+    Device_ClassGuid                         GUID           {e0cbf06c-cd8b-4647-bb8a-263b43f0f974}
+    Device_Driver                            STRING         "{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}\0004"
+    Device_ConfigFlags                       UINT32         0 (0x00000000)
+    Device_Manufacturer                      STRING         "Microsoft"
+    Device_FriendlyName                      STRING         "[AV] Samsung Soundbar N650 N-Series"
+    Device_PDOName                           STRING         "\Device\00000098"
+    Device_Capabilities                      UINT32         196 (0x000000C4)
+    Device_EnumeratorName                    STRING         "BTHENUM"
+    Device_PowerData                         BINARY         3800000001000000090000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 (56 bytes)
+    Device_RemovalPolicy                     UINT32         2 (0x00000002)
+    Device_RemovalPolicyDefault              UINT32         2 (0x00000002)
+    Device_InstallState                      UINT32         0 (0x00000000)
+    Device_BaseContainerId                   GUID           {e5610de5-ba8f-50ea-8ff3-bf547a268c26}
+    DEVPKEY_NAME                             STRING         "[AV] Samsung Soundbar N650 N-Series"
+    Device_InstanceId                        STRING         "BTHENUM\DEV_FC039F42E11F\7&30660270&0&BLUETOOTHDEVICE_FC039F42E11F"
+    Device_DevNodeStatus                     UINT32         25190410 (0x0180600A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_Parent                            STRING         "BTH\MS_BTHBRB\6&29d56e15&0&1"
+    Device_Siblings                          STRING_LIST    ["BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000", "BTHENUM\{0000110e-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000"]
+    Device_SafeRemovalRequired               BOOLEAN        false
+    Device_ContainerId                       GUID           {e5610de5-ba8f-50ea-8ff3-bf547a268c26}
+    Device_IsPresent                         BOOLEAN        true
+    Device_HasProblem                        BOOLEAN        false
+    Device_DriverLogoLevel                   BOOLEAN        true
+    Device_IsRebootRequired                  BOOLEAN        false
+    Device_ReportedDeviceIdsHash             UINT32         2472282718 (0x935C0A5E)
+    Device_InLocalMachineContainer           BOOLEAN        false
+    Device_Stack                             STRING_LIST    ["\Driver\BthEnum"]
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},26 BOOLEAN        false
+    Bluetooth_DeviceAddress                  STRING         "FC039F42E11F"
+    Bluetooth_ServiceGUID                    GUID           {00000000-0000-0000-0000-000000000000}
+    Bluetooth_DeviceFlags                    UINT32         67126175 (0x0400439F)
+    Bluetooth_DeviceManufacturer             UINT32         1044 (0x00000414)
+    Bluetooth_ClassOfDevice                  UINT32         1044 (0x00000414)
+    {3464f7a4-2444-40b1-980a-e0903cb6d912},10 UINT32         3 (0x00000003)
+    Aep.AepId                                STRING         "Bluetooth#Bluetooth2c:0d:a7:bc:75:68-fc:03:9f:42:e1:1f"
+    Device_BusReportedDeviceDesc             STRING         "藍牙周邊裝置"
+    Device_ConfigurationId                   STRING         "bth.inf:BTHENUM\GENERIC_DEVICE,BthGenericDevice.NT"
+    {670245f9-6e25-4179-85c1-981c33b9d3b7},4 BYTE           0 (0x00)
+    {670245f9-6e25-4179-85c1-981c33b9d3b7},5 BOOLEAN        false
+    {78c34fc8-104a-4aca-9ea4-524d52996e57},52 STRING_LIST    ["Bluetooth"]
+    {78c34fc8-104a-4aca-9ea4-524d52996e57},90 STRING_LIST    ["Audio.Speakers"]
+    {78c34fc8-104a-4aca-9ea4-524d52996e57},98 BOOLEAN        true
+    {78c34fc8-104a-4aca-9ea4-524d52996e57},101 BOOLEAN        true
+    {80497100-8c73-48b9-aad9-ce387e19c56e},6 UINT32         0 (0x00000000)
+    Device_DriverVersion                     STRING         "bth.inf:00a2c5fcb624f55d:BthGenericDevice.NT:10.0.26100.9711:BTHENUM\GENERIC_DEVICE"
+    {83da6326-97a6-4088-9453-a1923f573b29},10 STRING         "BTH\MS_BTHBRB\6&29d56e15&0&1"
+    Device_InstallDate                       FILETIME       2025-05-01 16:16:33 (local)
+    Device_FirstInstallDate                  FILETIME       2025-05-01 16:16:33 (local)
+    Device_LastArrivalDate                   FILETIME       2026-10-21 02:43:14 (local)
+    Aep.DeviceAddress                        STRING         "fc:03:9f:42:e1:1f"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},2 FILETIME       2006-06-21 08:00:00 (local)
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},3 STRING         "10.0.26100.9711"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},4 STRING         "Bluetooth Device"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},5 STRING         "bth.inf"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},6 STRING         "BthGenericDevice.NT"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},8 STRING         "BTHENUM\GENERIC_DEVICE"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},9 STRING         "Microsoft"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},14 UINT32         16719872 (0x00FF2000)
+    CM_Get_Child cr=0x0D (no children in the live tree)
+
+--- BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000
+    devInst=0x00000002 locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x0180600A [DRIVER_LOADED|STARTED|DISABLEABLE|REMOVABLE|NT_ENUMERATOR|NT_DRIVER] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=65
+    Device_DeviceDesc                        STRING         "Microsoft Bluetooth A2dp 來源"
+    Device_HardwareIds                       STRING_LIST    ["BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002"]
+    Device_CompatibleIds                     STRING_LIST    ["BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}", "BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_GENERIC"]
+    Device_Service                           STRING         "BthA2dp"
+    Device_Class                             STRING         "MEDIA"
+    Device_ClassGuid                         GUID           {4d36e96c-e325-11ce-bfc1-08002be10318}
+    Device_Driver                            STRING         "{4d36e96c-e325-11ce-bfc1-08002be10318}\0004"
+    Device_ConfigFlags                       UINT32         0 (0x00000000)
+    Device_Manufacturer                      STRING         "Microsoft"
+    Device_FriendlyName                      STRING         "[AV] Samsung Soundbar N650 N-Series"
+    Device_PDOName                           STRING         "\Device\0000009d"
+    Device_Capabilities                      UINT32         196 (0x000000C4)
+    Device_EnumeratorName                    STRING         "BTHENUM"
+    Device_PowerData                         BINARY         3800000001000000090000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000 (56 bytes)
+    Device_RemovalPolicy                     UINT32         2 (0x00000002)
+    Device_RemovalPolicyDefault              UINT32         2 (0x00000002)
+    Device_InstallState                      UINT32         0 (0x00000000)
+    Device_BaseContainerId                   GUID           {e5610de5-ba8f-50ea-8ff3-bf547a268c26}
+    DEVPKEY_NAME                             STRING         "[AV] Samsung Soundbar N650 N-Series"
+    Device_InstanceId                        STRING         "BTHENUM\{0000110B-0000-1000-8000-00805F9B34FB}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000"
+    Device_DevNodeStatus                     UINT32         25190410 (0x0180600A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_BusRelations                      STRING_LIST    ["SWD\MMDEVAPI\{0.0.0.00000000}.{bee9daa9-f45e-4c73-b3e1-c1276b26b4b2}"]
+    Device_Parent                            STRING         "BTH\MS_BTHBRB\6&29d56e15&0&1"
+    Device_Children                          STRING_LIST    ["SWD\MMDEVAPI\{0.0.0.00000000}.{bee9daa9-f45e-4c73-b3e1-c1276b26b4b2}"]
+    Device_Siblings                          STRING_LIST    ["BTHENUM\Dev_FC039F42E11F\7&30660270&0&BluetoothDevice_FC039F42E11F", "BTHENUM\{0000110e-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000"]
+    Device_SafeRemovalRequired               BOOLEAN        false
+    Device_ContainerId                       GUID           {e5610de5-ba8f-50ea-8ff3-bf547a268c26}
+    Device_IsPresent                         BOOLEAN        true
+    Device_HasProblem                        BOOLEAN        false
+    Device_DriverLogoLevel                   BOOLEAN        false
+    Device_IsRebootRequired                  BOOLEAN        false
+    Device_ReportedDeviceIdsHash             UINT32         1840502587 (0x6DB3D73B)
+    Device_InLocalMachineContainer           BOOLEAN        false
+    Device_Stack                             STRING_LIST    ["\Driver\ksthunk", "\Driver\BthA2dp", "\Driver\BthEnum"]
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},26 BOOLEAN        false
+    Bluetooth_DeviceAddress                  STRING         "FC039F42E11F"
+    Bluetooth_ServiceGUID                    GUID           {0000110b-0000-1000-8000-00805f9b34fb}
+    Bluetooth_DeviceFlags                    UINT32         67126175 (0x0400439F)
+    Bluetooth_DeviceManufacturer             UINT32         1044 (0x00000414)
+    Bluetooth_ClassOfDevice                  UINT32         1044 (0x00000414)
+    {3464f7a4-2444-40b1-980a-e0903cb6d912},10 UINT32         3 (0x00000003)
+    Aep.AepId                                STRING         "Bluetooth#Bluetooth2c:0d:a7:bc:75:68-fc:03:9f:42:e1:1f"
+    Device_BusReportedDeviceDesc             STRING         "Audio/Video Service"
+    Device_ConfigurationId                   STRING         "microsoft_bluetooth_a2dp_src.inf:BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb},BthA2dpSrc"
+    {78c34fc8-104a-4aca-9ea4-524d52996e57},98 BOOLEAN        true
+    {78c34fc8-104a-4aca-9ea4-524d52996e57},101 BOOLEAN        true
+    {80497100-8c73-48b9-aad9-ce387e19c56e},6 UINT32         0 (0x00000000)
+    Device_PresenceNotForDevice              BOOLEAN        true
+    Device_DriverVersion                     STRING         "microsoft_bluetooth_a2dp_src.inf:00a2c5fc7d8ad5f7:BthA2dpSrc:10.0.26100.1:BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}"
+    {83da6326-97a6-4088-9453-a1923f573b29},10 STRING         "BTH\MS_BTHBRB\6&29d56e15&0&1"
+    Device_InstallDate                       FILETIME       2025-05-01 16:16:34 (local)
+    Device_FirstInstallDate                  FILETIME       2025-05-01 16:16:34 (local)
+    Device_LastArrivalDate                   FILETIME       2026-10-21 02:43:17 (local)
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},2 FILETIME       2024-03-31 08:00:00 (local)
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},3 STRING         "10.0.26100.1"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},4 STRING         "Microsoft Bluetooth A2dp Source"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},5 STRING         "microsoft_bluetooth_a2dp_src.inf"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},6 STRING         "BthA2dpSrc"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},8 STRING         "BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},9 STRING         "Microsoft"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},14 UINT32         16719872 (0x00FF2000)
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},16 STRING_LIST    ["microsoft_bluetooth_a2dp.inf", "ks.inf", "wdmaudio.inf", "BtaMpm.inf"]
+    {b3f8fa53-0004-438e-9003-51a46e139bfc},7 UINT32         0 (0x00000000)
+    {d1885396-39d8-4777-bcff-5e3241483416},0 UINT32         2 (0x00000002)
+        child[1] SWD\MMDEVAPI\{0.0.0.00000000}.{BEE9DAA9-F45E-4C73-B3E1-C1276B26B4B2}
+            status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] prob=0 name="喇叭 ([AV] Samsung Soundbar N650 N-Series)" battery=none
+    Device_Children property: 1 id(s)
+        SWD\MMDEVAPI\{0.0.0.00000000}.{bee9daa9-f45e-4c73-b3e1-c1276b26b4b2}  status=0x0180200A prob=0 name="喇叭 ([AV] Samsung Soundbar N650 N-Series)" battery=none
+
+--- BTHENUM\{0000110e-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000
+    devInst=0x00000004 locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x0180600A [DRIVER_LOADED|STARTED|DISABLEABLE|REMOVABLE|NT_ENUMERATOR|NT_DRIVER] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=60
+    Device_DeviceDesc                        STRING         "Microsoft 藍牙 Avrcp 傳輸驅動程式"
+    Device_HardwareIds                       STRING_LIST    ["BTHENUM\{0000110e-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002"]
+    Device_CompatibleIds                     STRING_LIST    ["BTHENUM\{0000110e-0000-1000-8000-00805f9b34fb}", "BTHENUM\{0000110e-0000-1000-8000-00805f9b34fb}_GENERIC"]
+    Device_Service                           STRING         "Microsoft_Bluetooth_AvrcpTransport"
+    Device_Class                             STRING         "Bluetooth"
+    Device_ClassGuid                         GUID           {e0cbf06c-cd8b-4647-bb8a-263b43f0f974}
+    Device_Driver                            STRING         "{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}\0005"
+    Device_ConfigFlags                       UINT32         0 (0x00000000)
+    Device_Manufacturer                      STRING         "Microsoft"
+    Device_FriendlyName                      STRING         "[AV] Samsung Soundbar N650 N-Series Avrcp Transport"
+    Device_PDOName                           STRING         "\Device\0000009e"
+    Device_Capabilities                      UINT32         196 (0x000000C4)
+    Device_EnumeratorName                    STRING         "BTHENUM"
+    Device_PowerData                         BINARY         3800000001000000090000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 (56 bytes)
+    Device_RemovalPolicy                     UINT32         2 (0x00000002)
+    Device_RemovalPolicyDefault              UINT32         2 (0x00000002)
+    Device_InstallState                      UINT32         0 (0x00000000)
+    Device_BaseContainerId                   GUID           {e5610de5-ba8f-50ea-8ff3-bf547a268c26}
+    DEVPKEY_NAME                             STRING         "[AV] Samsung Soundbar N650 N-Series Avrcp Transport"
+    Device_InstanceId                        STRING         "BTHENUM\{0000110E-0000-1000-8000-00805F9B34FB}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000"
+    Device_DevNodeStatus                     UINT32         25190410 (0x0180600A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_Parent                            STRING         "BTH\MS_BTHBRB\6&29d56e15&0&1"
+    Device_Siblings                          STRING_LIST    ["BTHENUM\Dev_FC039F42E11F\7&30660270&0&BluetoothDevice_FC039F42E11F", "BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000"]
+    Device_SafeRemovalRequired               BOOLEAN        false
+    Device_ContainerId                       GUID           {e5610de5-ba8f-50ea-8ff3-bf547a268c26}
+    Device_IsPresent                         BOOLEAN        true
+    Device_HasProblem                        BOOLEAN        false
+    Device_DriverLogoLevel                   BOOLEAN        false
+    Device_IsRebootRequired                  BOOLEAN        false
+    Device_ReportedDeviceIdsHash             UINT32         50649330 (0x0304D8F2)
+    Device_InLocalMachineContainer           BOOLEAN        false
+    Device_Stack                             STRING_LIST    ["\Driver\Microsoft_Bluetooth_AvrcpTransport", "\Driver\BthEnum"]
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},26 BOOLEAN        false
+    Bluetooth_DeviceAddress                  STRING         "FC039F42E11F"
+    Bluetooth_ServiceGUID                    GUID           {0000110e-0000-1000-8000-00805f9b34fb}
+    Bluetooth_DeviceFlags                    UINT32         67126175 (0x0400439F)
+    Bluetooth_DeviceManufacturer             UINT32         1044 (0x00000414)
+    Bluetooth_ClassOfDevice                  UINT32         1044 (0x00000414)
+    {3464f7a4-2444-40b1-980a-e0903cb6d912},10 UINT32         3 (0x00000003)
+    Aep.AepId                                STRING         "Bluetooth#Bluetooth2c:0d:a7:bc:75:68-fc:03:9f:42:e1:1f"
+    Device_BusReportedDeviceDesc             STRING         "Woofer & EQ
+2"
+    Device_ConfigurationId                   STRING         "microsoft_bluetooth_avrcptransport.inf:BTHENUM\{0000110e-0000-1000-8000-00805f9b34fb},Microsoft_Bluetooth_AvrcpTransport.NT"
+    {78c34fc8-104a-4aca-9ea4-524d52996e57},98 BOOLEAN        true
+    {78c34fc8-104a-4aca-9ea4-524d52996e57},101 BOOLEAN        true
+    {80497100-8c73-48b9-aad9-ce387e19c56e},6 UINT32         0 (0x00000000)
+    Device_PresenceNotForDevice              BOOLEAN        true
+    Device_DriverVersion                     STRING         "microsoft_bluetooth_avrcptransport.inf:00a2c5fc154675a7:Microsoft_Bluetooth_AvrcpTransport.NT:10.0.26100.9549:BTHENUM\{0000110e-0000-1000-8000-00805f9b34fb}"
+    {83da6326-97a6-4088-9453-a1923f573b29},10 STRING         "BTH\MS_BTHBRB\6&29d56e15&0&1"
+    Device_InstallDate                       FILETIME       2025-05-01 16:16:34 (local)
+    Device_FirstInstallDate                  FILETIME       2025-05-01 16:16:34 (local)
+    Device_LastArrivalDate                   FILETIME       2026-10-21 02:43:17 (local)
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},2 FILETIME       2026-09-17 08:00:00 (local)
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},3 STRING         "10.0.26100.9549"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},4 STRING         "Microsoft Bluetooth Avrcp Transport Driver"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},5 STRING         "microsoft_bluetooth_avrcptransport.inf"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},6 STRING         "Microsoft_Bluetooth_AvrcpTransport.NT"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},8 STRING         "BTHENUM\{0000110e-0000-1000-8000-00805f9b34fb}"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},9 STRING         "Microsoft"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},14 UINT32         16719872 (0x00FF2000)
+    CM_Get_Child cr=0x0D (no children in the live tree)
+
+--- BTHLE\Dev_686ce645e1ad\7&b8081d1&0&686ce645e1ad
+    devInst=0x00000005 locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x0380200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER|NEEDS_LOCKING/DEVICE_DISCONNECTED] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=67
+    Device_DeviceDesc                        STRING         "藍牙 LE 裝置"
+    Device_HardwareIds                       STRING_LIST    ["BTHLE\Dev_686ce645e1ad"]
+    Device_CompatibleIds                     STRING_LIST    ["BTHLE\GenericDevice"]
+    Device_Service                           STRING         "BthLEEnum"
+    Device_Class                             STRING         "Bluetooth"
+    Device_ClassGuid                         GUID           {e0cbf06c-cd8b-4647-bb8a-263b43f0f974}
+    Device_Driver                            STRING         "{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}\0006"
+    Device_ConfigFlags                       UINT32         0 (0x00000000)
+    Device_Manufacturer                      STRING         "Microsoft"
+    Device_FriendlyName                      STRING         "Xbox Wireless Controller"
+    Device_LocationInfo                      STRING         "Bluetooth LE Device"
+    Device_PDOName                           STRING         "\Device\00000099"
+    Device_Capabilities                      UINT32         128 (0x00000080)
+    Device_EnumeratorName                    STRING         "BTHLE"
+    Device_PowerData                         BINARY         38000000010000004D0000000000000000000000000000000000000001000000030000000300000003000000030000000400000005000000 (56 bytes)
+    Device_RemovalPolicy                     UINT32         1 (0x00000001)
+    Device_RemovalPolicyDefault              UINT32         1 (0x00000001)
+    Device_InstallState                      UINT32         0 (0x00000000)
+    Device_BaseContainerId                   GUID           {f5841e36-043d-5fa0-9d4c-773ade0d5b51}
+    DEVPKEY_NAME                             STRING         "Xbox Wireless Controller"
+    Device_InstanceId                        STRING         "BTHLE\DEV_686CE645E1AD\7&B8081D1&0&686CE645E1AD"
+    Device_DevNodeStatus                     UINT32         58728458 (0x0380200A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_BusRelations                      STRING_LIST    ["BTHLEDevice\{00001800-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0001", "BTHLEDevice\{00001801-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0008", "BTHLEDevice\{0000180a-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0009", "BTHLEDevice\{0000180f-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0012", "BTHLEDevice\{00001812-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0016", "BTHLEDevice\{00000001-5f60-4c4f-9c83-a7953298d40d}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0024"]
+    Device_Parent                            STRING         "BTH\MS_BTHLE\6&29d56e15&0&3"
+    Device_Children                          STRING_LIST    ["BTHLEDevice\{00001800-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0001", "BTHLEDevice\{00001801-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0008", "BTHLEDevice\{0000180a-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0009", "BTHLEDevice\{0000180f-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0012", "BTHLEDevice\{00001812-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0016", "BTHLEDevice\{00000001-5f60-4c4f-9c83-a7953298d40d}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0024"]
+    Device_SafeRemovalRequired               BOOLEAN        false
+    Device_ContainerId                       GUID           {f5841e36-043d-5fa0-9d4c-773ade0d5b51}
+    Device_IsPresent                         BOOLEAN        true
+    Device_HasProblem                        BOOLEAN        false
+    Device_DriverLogoLevel                   BOOLEAN        false
+    Device_IsRebootRequired                  BOOLEAN        false
+    Device_ReportedDeviceIdsHash             UINT32         3613533895 (0xD76226C7)
+    Device_InLocalMachineContainer           BOOLEAN        false
+    Device_Stack                             STRING_LIST    ["\Driver\BthLEEnum", "\Driver\BthLEEnum"]
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},26 BOOLEAN        false
+    Bluetooth_Battery                        BYTE           75 (0x4B)
+    {104ea319-6ee2-4701-bd47-8ddbf425bbe5},3 BOOLEAN        false
+    {104ea319-6ee2-4701-bd47-8ddbf425bbe5},7 FILETIME       2026-10-02 02:43:24 (local)
+    Bluetooth_DeviceAddress                  STRING         "686ce645e1ad"
+    Bluetooth_DeviceFlags                    UINT32         272859143 (0x10438007)
+    Bluetooth_LastConnectedTime              FILETIME       2026-05-28 08:50:46 (local)
+    {3464f7a4-2444-40b1-980a-e0903cb6d912},10 UINT32         3 (0x00000003)
+    Aep.AepId                                STRING         "BluetoothLE#BluetoothLE2c:0d:a7:bc:75:68-68:6c:e6:45:e1:ad"
+    Device_BusReportedDeviceDesc             STRING         "Bluetooth LE Device 686ce645e1ad"
+    Device_ConfigurationId                   STRING         "bthleenum.inf:BTHLE\GenericDevice,BthLEEnum.Device.NT"
+    {78c34fc8-104a-4aca-9ea4-524d52996e57},52 STRING_LIST    ["Bluetooth Low Energy"]
+    {78c34fc8-104a-4aca-9ea4-524d52996e57},90 STRING_LIST    ["Input.Gaming.Gamepad"]
+    {78c34fc8-104a-4aca-9ea4-524d52996e57},98 BOOLEAN        true
+    {78c34fc8-104a-4aca-9ea4-524d52996e57},101 BOOLEAN        true
+    {80497100-8c73-48b9-aad9-ce387e19c56e},6 UINT32         0 (0x00000000)
+    Device_DriverVersion                     STRING         "bthleenum.inf:00a2c5fcbb992863:BthLEEnum.Device.NT:10.0.26100.9711:BTHLE\GenericDevice"
+    {83da6326-97a6-4088-9453-a1923f573b29},10 STRING         "BTH\MS_BTHLE\6&29d56e15&0&3"
+    Device_InstallDate                       FILETIME       2026-05-28 00:50:48 (local)
+    Device_FirstInstallDate                  FILETIME       2026-05-28 00:50:48 (local)
+    Device_LastArrivalDate                   FILETIME       2026-10-21 02:43:14 (local)
+    Aep.Bluetooth.Le.AddressType             BYTE           0 (0x00)
+    {995ef0b0-7eb3-4a8b-b9ce-068bb3f4af69},9 BOOLEAN        true
+    Aep.DeviceAddress                        STRING         "68:6c:e6:45:e1:ad"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},2 FILETIME       2006-06-21 08:00:00 (local)
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},3 STRING         "10.0.26100.9711"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},4 STRING         "Bluetooth LE Device"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},5 STRING         "bthleenum.inf"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},6 STRING         "BthLEEnum.Device.NT"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},8 STRING         "BTHLE\GenericDevice"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},9 STRING         "Microsoft"
+    {a8b865dd-2e3d-4094-ad97-e593a70c75d6},14 UINT32         16719872 (0x00FF2000)
+        child[1] BTHLEDEVICE\{00001800-0000-1000-8000-00805F9B34FB}_DEV_VID&02045E_PID&0B13_REV&0509_686CE645E1AD\8&321CDD6F&0&0001
+            status=0x4180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER|NO_SHOW_IN_DM] prob=0 name="泛型存取設定檔" battery=none
+            Bluetooth_DeviceAddress              STRING         "686ce645e1ad"
+            Bluetooth_ServiceGUID                GUID           {00001800-0000-1000-8000-00805f9b34fb}
+            Bluetooth_DeviceManufacturer         STRING         "Microsoft"
+            Bluetooth_DeviceVIDSource            BYTE           2 (0x02)
+            Bluetooth_DeviceVID                  UINT16         1118 (0x045E)
+            Bluetooth_DevicePID                  UINT16         2835 (0x0B13)
+            Bluetooth_DeviceProductVersion       UINT16         1289 (0x0509)
+        child[1] BTHLEDEVICE\{00001801-0000-1000-8000-00805F9B34FB}_DEV_VID&02045E_PID&0B13_REV&0509_686CE645E1AD\8&321CDD6F&0&0008
+            status=0x4180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER|NO_SHOW_IN_DM] prob=0 name="泛型屬性設定檔" battery=none
+            Bluetooth_DeviceAddress              STRING         "686ce645e1ad"
+            Bluetooth_ServiceGUID                GUID           {00001801-0000-1000-8000-00805f9b34fb}
+            Bluetooth_DeviceManufacturer         STRING         "Microsoft"
+            Bluetooth_DeviceVIDSource            BYTE           2 (0x02)
+            Bluetooth_DeviceVID                  UINT16         1118 (0x045E)
+            Bluetooth_DevicePID                  UINT16         2835 (0x0B13)
+            Bluetooth_DeviceProductVersion       UINT16         1289 (0x0509)
+        child[1] BTHLEDEVICE\{0000180A-0000-1000-8000-00805F9B34FB}_DEV_VID&02045E_PID&0B13_REV&0509_686CE645E1AD\8&321CDD6F&0&0009
+            status=0x4180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER|NO_SHOW_IN_DM] prob=0 name="裝置資訊服務" battery=none
+            Bluetooth_DeviceAddress              STRING         "686ce645e1ad"
+            Bluetooth_ServiceGUID                GUID           {0000180a-0000-1000-8000-00805f9b34fb}
+            Bluetooth_DeviceManufacturer         STRING         "Microsoft"
+            Bluetooth_DeviceVIDSource            BYTE           2 (0x02)
+            Bluetooth_DeviceVID                  UINT16         1118 (0x045E)
+            Bluetooth_DevicePID                  UINT16         2835 (0x0B13)
+            Bluetooth_DeviceProductVersion       UINT16         1289 (0x0509)
+        child[1] BTHLEDEVICE\{0000180F-0000-1000-8000-00805F9B34FB}_DEV_VID&02045E_PID&0B13_REV&0509_686CE645E1AD\8&321CDD6F&0&0012
+            status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] prob=0 name="藍牙 LE 泛型屬性服務" battery=none
+            Bluetooth_DeviceAddress              STRING         "686ce645e1ad"
+            Bluetooth_ServiceGUID                GUID           {0000180f-0000-1000-8000-00805f9b34fb}
+            Bluetooth_DeviceManufacturer         STRING         "Microsoft"
+            Bluetooth_DeviceVIDSource            BYTE           2 (0x02)
+            Bluetooth_DeviceVID                  UINT16         1118 (0x045E)
+            Bluetooth_DevicePID                  UINT16         2835 (0x0B13)
+            Bluetooth_DeviceProductVersion       UINT16         1289 (0x0509)
+        child[1] BTHLEDEVICE\{00001812-0000-1000-8000-00805F9B34FB}_DEV_VID&02045E_PID&0B13_REV&0509_686CE645E1AD\8&321CDD6F&0&0016
+            status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] prob=0 name="藍牙 XINPUT 相容輸入裝置" battery=none
+            Bluetooth_DeviceAddress              STRING         "686ce645e1ad"
+            Bluetooth_ServiceGUID                GUID           {00001812-0000-1000-8000-00805f9b34fb}
+            Bluetooth_DeviceManufacturer         STRING         "Microsoft"
+            Bluetooth_DeviceVIDSource            BYTE           2 (0x02)
+            Bluetooth_DeviceVID                  UINT16         1118 (0x045E)
+            Bluetooth_DevicePID                  UINT16         2835 (0x0B13)
+            Bluetooth_DeviceProductVersion       UINT16         1289 (0x0509)
+        child[1] BTHLEDEVICE\{00000001-5F60-4C4F-9C83-A7953298D40D}_DEV_VID&02045E_PID&0B13_REV&0509_686CE645E1AD\8&321CDD6F&0&0024
+            status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] prob=0 name="藍牙 LE 泛型屬性服務" battery=none
+            Bluetooth_DeviceAddress              STRING         "686ce645e1ad"
+            Bluetooth_ServiceGUID                GUID           {00000001-5f60-4c4f-9c83-a7953298d40d}
+            Bluetooth_DeviceManufacturer         STRING         "Microsoft"
+            Bluetooth_DeviceVIDSource            BYTE           2 (0x02)
+            Bluetooth_DeviceVID                  UINT16         1118 (0x045E)
+            Bluetooth_DevicePID                  UINT16         2835 (0x0B13)
+            Bluetooth_DeviceProductVersion       UINT16         1289 (0x0509)
+    Device_Children property: 6 id(s)
+        BTHLEDevice\{00001800-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0001  status=0x4180200A prob=0 name="泛型存取設定檔" battery=none
+        BTHLEDevice\{00001801-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0008  status=0x4180200A prob=0 name="泛型屬性設定檔" battery=none
+        BTHLEDevice\{0000180a-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0009  status=0x4180200A prob=0 name="裝置資訊服務" battery=none
+        BTHLEDevice\{0000180f-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0012  status=0x0180200A prob=0 name="藍牙 LE 泛型屬性服務" battery=none
+        BTHLEDevice\{00001812-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0016  status=0x0180200A prob=0 name="藍牙 XINPUT 相容輸入裝置" battery=none
+        BTHLEDevice\{00000001-5f60-4c4f-9c83-a7953298d40d}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0024  status=0x0180200A prob=0 name="藍牙 LE 泛型屬性服務" battery=none
+
+====================================================================================================
+2b. BTH\ bus nodes and BTHLEDevice\ GATT service nodes (brief: status + Bluetooth-family keys)
+====================================================================================================
+
+--- BTH\MS_BTHLE\6&29d56e15&0&3
+    devInst=0x0000000C locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=51
+    DEVPKEY_NAME                             STRING         "Microsoft 藍牙 LE 列舉程式"
+    Device_DevNodeStatus                     UINT32         25174026 (0x0180200A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_Parent                            STRING         "USB\VID_8087&PID_0033\5&cc3f949&0&14"
+    Device_IsPresent                         BOOLEAN        true
+        child[1] BTHLE\DEV_686CE645E1AD\7&B8081D1&0&686CE645E1AD
+            status=0x0380200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER|NEEDS_LOCKING/DEVICE_DISCONNECTED] prob=0 name="Xbox Wireless Controller" battery=75%
+            Bluetooth_Battery                    BYTE           75 (0x4B)
+            {104ea319-6ee2-4701-bd47-8ddbf425bbe5},3 BOOLEAN        false
+            {104ea319-6ee2-4701-bd47-8ddbf425bbe5},7 FILETIME       2026-10-02 02:43:24 (local)
+            Bluetooth_DeviceAddress              STRING         "686ce645e1ad"
+            Bluetooth_DeviceFlags                UINT32         272859143 (0x10438007)
+            Bluetooth_LastConnectedTime          FILETIME       2026-05-28 08:50:46 (local)
+            child[2] BTHLEDEVICE\{00001800-0000-1000-8000-00805F9B34FB}_DEV_VID&02045E_PID&0B13_REV&0509_686CE645E1AD\8&321CDD6F&0&0001
+                status=0x4180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER|NO_SHOW_IN_DM] prob=0 name="泛型存取設定檔" battery=none
+                Bluetooth_DeviceAddress              STRING         "686ce645e1ad"
+                Bluetooth_ServiceGUID                GUID           {00001800-0000-1000-8000-00805f9b34fb}
+                Bluetooth_DeviceManufacturer         STRING         "Microsoft"
+                Bluetooth_DeviceVIDSource            BYTE           2 (0x02)
+                Bluetooth_DeviceVID                  UINT16         1118 (0x045E)
+                Bluetooth_DevicePID                  UINT16         2835 (0x0B13)
+                Bluetooth_DeviceProductVersion       UINT16         1289 (0x0509)
+            child[2] BTHLEDEVICE\{00001801-0000-1000-8000-00805F9B34FB}_DEV_VID&02045E_PID&0B13_REV&0509_686CE645E1AD\8&321CDD6F&0&0008
+                status=0x4180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER|NO_SHOW_IN_DM] prob=0 name="泛型屬性設定檔" battery=none
+                Bluetooth_DeviceAddress              STRING         "686ce645e1ad"
+                Bluetooth_ServiceGUID                GUID           {00001801-0000-1000-8000-00805f9b34fb}
+                Bluetooth_DeviceManufacturer         STRING         "Microsoft"
+                Bluetooth_DeviceVIDSource            BYTE           2 (0x02)
+                Bluetooth_DeviceVID                  UINT16         1118 (0x045E)
+                Bluetooth_DevicePID                  UINT16         2835 (0x0B13)
+                Bluetooth_DeviceProductVersion       UINT16         1289 (0x0509)
+            child[2] BTHLEDEVICE\{0000180A-0000-1000-8000-00805F9B34FB}_DEV_VID&02045E_PID&0B13_REV&0509_686CE645E1AD\8&321CDD6F&0&0009
+                status=0x4180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER|NO_SHOW_IN_DM] prob=0 name="裝置資訊服務" battery=none
+                Bluetooth_DeviceAddress              STRING         "686ce645e1ad"
+                Bluetooth_ServiceGUID                GUID           {0000180a-0000-1000-8000-00805f9b34fb}
+                Bluetooth_DeviceManufacturer         STRING         "Microsoft"
+                Bluetooth_DeviceVIDSource            BYTE           2 (0x02)
+                Bluetooth_DeviceVID                  UINT16         1118 (0x045E)
+                Bluetooth_DevicePID                  UINT16         2835 (0x0B13)
+                Bluetooth_DeviceProductVersion       UINT16         1289 (0x0509)
+            child[2] BTHLEDEVICE\{0000180F-0000-1000-8000-00805F9B34FB}_DEV_VID&02045E_PID&0B13_REV&0509_686CE645E1AD\8&321CDD6F&0&0012
+                status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] prob=0 name="藍牙 LE 泛型屬性服務" battery=none
+                Bluetooth_DeviceAddress              STRING         "686ce645e1ad"
+                Bluetooth_ServiceGUID                GUID           {0000180f-0000-1000-8000-00805f9b34fb}
+                Bluetooth_DeviceManufacturer         STRING         "Microsoft"
+                Bluetooth_DeviceVIDSource            BYTE           2 (0x02)
+                Bluetooth_DeviceVID                  UINT16         1118 (0x045E)
+                Bluetooth_DevicePID                  UINT16         2835 (0x0B13)
+                Bluetooth_DeviceProductVersion       UINT16         1289 (0x0509)
+            child[2] BTHLEDEVICE\{00001812-0000-1000-8000-00805F9B34FB}_DEV_VID&02045E_PID&0B13_REV&0509_686CE645E1AD\8&321CDD6F&0&0016
+                status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] prob=0 name="藍牙 XINPUT 相容輸入裝置" battery=none
+                Bluetooth_DeviceAddress              STRING         "686ce645e1ad"
+                Bluetooth_ServiceGUID                GUID           {00001812-0000-1000-8000-00805f9b34fb}
+                Bluetooth_DeviceManufacturer         STRING         "Microsoft"
+                Bluetooth_DeviceVIDSource            BYTE           2 (0x02)
+                Bluetooth_DeviceVID                  UINT16         1118 (0x045E)
+                Bluetooth_DevicePID                  UINT16         2835 (0x0B13)
+                Bluetooth_DeviceProductVersion       UINT16         1289 (0x0509)
+            child[2] BTHLEDEVICE\{00000001-5F60-4C4F-9C83-A7953298D40D}_DEV_VID&02045E_PID&0B13_REV&0509_686CE645E1AD\8&321CDD6F&0&0024
+                status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] prob=0 name="藍牙 LE 泛型屬性服務" battery=none
+                Bluetooth_DeviceAddress              STRING         "686ce645e1ad"
+                Bluetooth_ServiceGUID                GUID           {00000001-5f60-4c4f-9c83-a7953298d40d}
+                Bluetooth_DeviceManufacturer         STRING         "Microsoft"
+                Bluetooth_DeviceVIDSource            BYTE           2 (0x02)
+                Bluetooth_DeviceVID                  UINT16         1118 (0x045E)
+                Bluetooth_DevicePID                  UINT16         2835 (0x0B13)
+                Bluetooth_DeviceProductVersion       UINT16         1289 (0x0509)
+    Device_Children property: 1 id(s)
+        BTHLE\Dev_686ce645e1ad\7&b8081d1&0&686ce645e1ad  status=0x0380200A prob=0 name="Xbox Wireless Controller" battery=75%
+
+--- BTH\MS_BTHBRB\6&29d56e15&0&1
+    devInst=0x0000000D locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=51
+    DEVPKEY_NAME                             STRING         "Microsoft 藍牙列舉程式"
+    Device_DevNodeStatus                     UINT32         25174026 (0x0180200A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_Parent                            STRING         "USB\VID_8087&PID_0033\5&cc3f949&0&14"
+    Device_IsPresent                         BOOLEAN        true
+        child[1] BTHENUM\DEV_FC039F42E11F\7&30660270&0&BLUETOOTHDEVICE_FC039F42E11F
+            status=0x0180600A [DRIVER_LOADED|STARTED|DISABLEABLE|REMOVABLE|NT_ENUMERATOR|NT_DRIVER] prob=0 name="[AV] Samsung Soundbar N650 N-Series" battery=none
+            Bluetooth_DeviceAddress              STRING         "FC039F42E11F"
+            Bluetooth_ServiceGUID                GUID           {00000000-0000-0000-0000-000000000000}
+            Bluetooth_DeviceFlags                UINT32         67126175 (0x0400439F)
+            Bluetooth_DeviceManufacturer         UINT32         1044 (0x00000414)
+            Bluetooth_ClassOfDevice              UINT32         1044 (0x00000414)
+        child[1] BTHENUM\{0000110B-0000-1000-8000-00805F9B34FB}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000
+            status=0x0180600A [DRIVER_LOADED|STARTED|DISABLEABLE|REMOVABLE|NT_ENUMERATOR|NT_DRIVER] prob=0 name="[AV] Samsung Soundbar N650 N-Series" battery=none
+            Bluetooth_DeviceAddress              STRING         "FC039F42E11F"
+            Bluetooth_ServiceGUID                GUID           {0000110b-0000-1000-8000-00805f9b34fb}
+            Bluetooth_DeviceFlags                UINT32         67126175 (0x0400439F)
+            Bluetooth_DeviceManufacturer         UINT32         1044 (0x00000414)
+            Bluetooth_ClassOfDevice              UINT32         1044 (0x00000414)
+            child[2] SWD\MMDEVAPI\{0.0.0.00000000}.{BEE9DAA9-F45E-4C73-B3E1-C1276B26B4B2}
+                status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] prob=0 name="喇叭 ([AV] Samsung Soundbar N650 N-Series)" battery=none
+        child[1] BTHENUM\{0000110E-0000-1000-8000-00805F9B34FB}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000
+            status=0x0180600A [DRIVER_LOADED|STARTED|DISABLEABLE|REMOVABLE|NT_ENUMERATOR|NT_DRIVER] prob=0 name="[AV] Samsung Soundbar N650 N-Series Avrcp Transport" battery=none
+            Bluetooth_DeviceAddress              STRING         "FC039F42E11F"
+            Bluetooth_ServiceGUID                GUID           {0000110e-0000-1000-8000-00805f9b34fb}
+            Bluetooth_DeviceFlags                UINT32         67126175 (0x0400439F)
+            Bluetooth_DeviceManufacturer         UINT32         1044 (0x00000414)
+            Bluetooth_ClassOfDevice              UINT32         1044 (0x00000414)
+    Device_Children property: 3 id(s)
+        BTHENUM\Dev_FC039F42E11F\7&30660270&0&BluetoothDevice_FC039F42E11F  status=0x0180600A prob=0 name="[AV] Samsung Soundbar N650 N-Series" battery=none
+        BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000  status=0x0180600A prob=0 name="[AV] Samsung Soundbar N650 N-Series" battery=none
+        BTHENUM\{0000110e-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000  status=0x0180600A prob=0 name="[AV] Samsung Soundbar N650 N-Series Avrcp Transport" battery=none
+
+--- BTH\MS_RFCOMM\6&29d56e15&0&0
+    devInst=0x0000000E locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=54
+    DEVPKEY_NAME                             STRING         "Bluetooth Device (RFCOMM Protocol TDI)"
+    Device_DevNodeStatus                     UINT32         25174026 (0x0180200A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_Parent                            STRING         "USB\VID_8087&PID_0033\5&cc3f949&0&14"
+    Device_IsPresent                         BOOLEAN        true
+    CM_Get_Child cr=0x0D (no children in the live tree)
+
+--- BTH\MS_BTHPAN\6&29d56e15&0&2
+    devInst=0x0000000F locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=50
+    DEVPKEY_NAME                             STRING         "Bluetooth Device (Personal Area Network)"
+    Device_DevNodeStatus                     UINT32         25174026 (0x0180200A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_Parent                            STRING         "USB\VID_8087&PID_0033\5&cc3f949&0&14"
+    Device_IsPresent                         BOOLEAN        true
+    CM_Get_Child cr=0x0D (no children in the live tree)
+
+--- BTHLEDevice\{00001812-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0016
+    devInst=0x0000000A locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=71
+    DEVPKEY_NAME                             STRING         "藍牙 XINPUT 相容輸入裝置"
+    Device_DevNodeStatus                     UINT32         25174026 (0x0180200A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_Parent                            STRING         "BTHLE\Dev_686ce645e1ad\7&b8081d1&0&686ce645e1ad"
+    Device_IsPresent                         BOOLEAN        true
+    Bluetooth_DeviceAddress                  STRING         "686ce645e1ad"
+    Bluetooth_ServiceGUID                    GUID           {00001812-0000-1000-8000-00805f9b34fb}
+    Bluetooth_DeviceManufacturer             STRING         "Microsoft"
+    Bluetooth_DeviceVIDSource                BYTE           2 (0x02)
+    Bluetooth_DeviceVID                      UINT16         1118 (0x045E)
+    Bluetooth_DevicePID                      UINT16         2835 (0x0B13)
+    Bluetooth_DeviceProductVersion           UINT16         1289 (0x0509)
+    CM_Get_Child cr=0x0D (no children in the live tree)
+
+--- BTHLEDevice\{00001801-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0008
+    devInst=0x00000007 locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x4180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER|NO_SHOW_IN_DM] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=65
+    DEVPKEY_NAME                             STRING         "泛型屬性設定檔"
+    Device_DevNodeStatus                     UINT32         1098915850 (0x4180200A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_Parent                            STRING         "BTHLE\Dev_686ce645e1ad\7&b8081d1&0&686ce645e1ad"
+    Device_IsPresent                         BOOLEAN        true
+    Bluetooth_DeviceAddress                  STRING         "686ce645e1ad"
+    Bluetooth_ServiceGUID                    GUID           {00001801-0000-1000-8000-00805f9b34fb}
+    Bluetooth_DeviceManufacturer             STRING         "Microsoft"
+    Bluetooth_DeviceVIDSource                BYTE           2 (0x02)
+    Bluetooth_DeviceVID                      UINT16         1118 (0x045E)
+    Bluetooth_DevicePID                      UINT16         2835 (0x0B13)
+    Bluetooth_DeviceProductVersion           UINT16         1289 (0x0509)
+    CM_Get_Child cr=0x0D (no children in the live tree)
+
+--- BTHLEDevice\{0000180a-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0009
+    devInst=0x00000008 locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x4180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER|NO_SHOW_IN_DM] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=65
+    DEVPKEY_NAME                             STRING         "裝置資訊服務"
+    Device_DevNodeStatus                     UINT32         1098915850 (0x4180200A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_Parent                            STRING         "BTHLE\Dev_686ce645e1ad\7&b8081d1&0&686ce645e1ad"
+    Device_IsPresent                         BOOLEAN        true
+    Bluetooth_DeviceAddress                  STRING         "686ce645e1ad"
+    Bluetooth_ServiceGUID                    GUID           {0000180a-0000-1000-8000-00805f9b34fb}
+    Bluetooth_DeviceManufacturer             STRING         "Microsoft"
+    Bluetooth_DeviceVIDSource                BYTE           2 (0x02)
+    Bluetooth_DeviceVID                      UINT16         1118 (0x045E)
+    Bluetooth_DevicePID                      UINT16         2835 (0x0B13)
+    Bluetooth_DeviceProductVersion           UINT16         1289 (0x0509)
+    CM_Get_Child cr=0x0D (no children in the live tree)
+
+--- BTHLEDevice\{00000001-5f60-4c4f-9c83-a7953298d40d}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0024
+    devInst=0x0000000B locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=65
+    DEVPKEY_NAME                             STRING         "藍牙 LE 泛型屬性服務"
+    Device_DevNodeStatus                     UINT32         25174026 (0x0180200A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_Parent                            STRING         "BTHLE\Dev_686ce645e1ad\7&b8081d1&0&686ce645e1ad"
+    Device_IsPresent                         BOOLEAN        true
+    Bluetooth_DeviceAddress                  STRING         "686ce645e1ad"
+    Bluetooth_ServiceGUID                    GUID           {00000001-5f60-4c4f-9c83-a7953298d40d}
+    Bluetooth_DeviceManufacturer             STRING         "Microsoft"
+    Bluetooth_DeviceVIDSource                BYTE           2 (0x02)
+    Bluetooth_DeviceVID                      UINT16         1118 (0x045E)
+    Bluetooth_DevicePID                      UINT16         2835 (0x0B13)
+    Bluetooth_DeviceProductVersion           UINT16         1289 (0x0509)
+    CM_Get_Child cr=0x0D (no children in the live tree)
+
+--- BTHLEDevice\{0000180f-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0012
+    devInst=0x00000009 locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x0180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=65
+    DEVPKEY_NAME                             STRING         "藍牙 LE 泛型屬性服務"
+    Device_DevNodeStatus                     UINT32         25174026 (0x0180200A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_Parent                            STRING         "BTHLE\Dev_686ce645e1ad\7&b8081d1&0&686ce645e1ad"
+    Device_IsPresent                         BOOLEAN        true
+    Bluetooth_DeviceAddress                  STRING         "686ce645e1ad"
+    Bluetooth_ServiceGUID                    GUID           {0000180f-0000-1000-8000-00805f9b34fb}
+    Bluetooth_DeviceManufacturer             STRING         "Microsoft"
+    Bluetooth_DeviceVIDSource                BYTE           2 (0x02)
+    Bluetooth_DeviceVID                      UINT16         1118 (0x045E)
+    Bluetooth_DevicePID                      UINT16         2835 (0x0B13)
+    Bluetooth_DeviceProductVersion           UINT16         1289 (0x0509)
+    CM_Get_Child cr=0x0D (no children in the live tree)
+
+--- BTHLEDevice\{00001800-0000-1000-8000-00805f9b34fb}_Dev_VID&02045e_PID&0b13_REV&0509_686ce645e1ad\8&321cdd6f&0&0001
+    devInst=0x00000006 locate(NORMAL) cr=0x00  CM_Get_DevNode_Status cr=0x00
+    status=0x4180200A [DRIVER_LOADED|STARTED|DISABLEABLE|NT_ENUMERATOR|NT_DRIVER|NO_SHOW_IN_DM] problem=0 
+    CM_Get_DevNode_Property_Keys cr=0x00 count=65
+    DEVPKEY_NAME                             STRING         "泛型存取設定檔"
+    Device_DevNodeStatus                     UINT32         1098915850 (0x4180200A)
+    Device_ProblemCode                       UINT32         0 (0x00000000)
+    Device_Parent                            STRING         "BTHLE\Dev_686ce645e1ad\7&b8081d1&0&686ce645e1ad"
+    Device_IsPresent                         BOOLEAN        true
+    Bluetooth_DeviceAddress                  STRING         "686ce645e1ad"
+    Bluetooth_ServiceGUID                    GUID           {00001800-0000-1000-8000-00805f9b34fb}
+    Bluetooth_DeviceManufacturer             STRING         "Microsoft"
+    Bluetooth_DeviceVIDSource                BYTE           2 (0x02)
+    Bluetooth_DeviceVID                      UINT16         1118 (0x045E)
+    Bluetooth_DevicePID                      UINT16         2835 (0x0B13)
+    Bluetooth_DeviceProductVersion           UINT16         1289 (0x0509)
+    CM_Get_Child cr=0x0D (no children in the live tree)
+
+====================================================================================================
+3. Aggregated per Bluetooth address (CfgMgr32 devnodes only)
+====================================================================================================
+Address       Enumerators     Present  Started  Problem  Battery  CoD        VID:PID    LastConnected        Name
+686CE645E1AD  BTHLE           Y        Y        -        75%      -          -          2026-05-28 08:50:46  Xbox Wireless Controller
+    [BTHLE] BTHLE\Dev_686ce645e1ad\7&b8081d1&0&686ce645e1ad
+        present=True started=True problem=0 IsPresentProp=True battery=75% from node BTHLE\Dev_686ce645e1ad\7&b8081d1&0&686ce645e1ad children=6 (present 6) lastConnected=2026-05-28 08:50:46 lastSeen= arrival=2026-10-21 02:43:14 removal=
+FC039F42E11F  BTHENUM         Y/Y/Y    Y/Y/Y    -/-/-    n/a      0x000414   -          -                    [AV] Samsung Soundbar N650 N-Series
+    [BTHENUM] BTHENUM\Dev_FC039F42E11F\7&30660270&0&BluetoothDevice_FC039F42E11F
+        present=True started=True problem=0 IsPresentProp=True battery=none children=0 (present 0) lastConnected= lastSeen= arrival=2026-10-21 02:43:14 removal=
+        CoD 0x000414: major=4 minor=5 services=0x0
+    [BTHENUM] BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000
+        present=True started=True problem=0 IsPresentProp=True battery=none children=1 (present 1) lastConnected= lastSeen= arrival=2026-10-21 02:43:17 removal=
+        CoD 0x000414: major=4 minor=5 services=0x0
+    [BTHENUM] BTHENUM\{0000110e-0000-1000-8000-00805f9b34fb}_LOCALMFG&0002\7&30660270&0&FC039F42E11F_C00000000
+        present=True started=True problem=0 IsPresentProp=True battery=none children=0 (present 0) lastConnected= lastSeen= arrival=2026-10-21 02:43:17 removal=
+        CoD 0x000414: major=4 minor=5 services=0x0
+
+====================================================================================================
+4. Win32 DevQuery (cfgmgr32!DevGetObjects, DevObjectTypeAEP) — the API WinRT DeviceInformation.FindAllAsync wraps; no CsWinRT
+====================================================================================================
+Paired Bluetooth AEPs: hr=0x00000000 count=1 (30005.8 ms)
+  Bluetooth#Bluetooth2c:0d:a7:bc:75:68-fc:03:9f:42:e1:1f
+      name="[AV] Samsung Soundbar N650 N-Series" address=FC039F42E11F IsConnected=True IsPaired=True IsPresent=True Le.Appearance=- Cod.Major=4 Cod.Minor=5 LastSeen=2026-10-21 10:43:18
+      {e7c3fb29-caa7-4f47-8c8b-be59b330d4c5},4         STRING         "[AV] Samsung Soundbar N650 N-Series"
+      DEVPKEY_NAME                                     STRING         "[AV] Samsung Soundbar N650 N-Series"
+      Aep.ContainerId                                  GUID           {e5610de5-ba8f-50ea-8ff3-bf547a268c26}
+      Aep.CanPair                                      BOOLEAN        false
+      Aep.Category                                     STRING_LIST    ["Audio.Speakers"]
+      {78c34fc8-104a-4aca-9ea4-524d52996e57},57        STRING         "C:\Windows\System32\DDORes.dll,-2015"
+      {51236583-0c4a-4fe8-b81f-166aec13f510},123       STRING         "C:\Windows\System32\DDORes.dll,-3014"
+      Aep.SignalStrength                               INT32          0
+      Aep.IsConnected                                  BOOLEAN        true
+      {a35996ab-11cf-4935-8b61-a6761081ecdf},8         BOOLEAN        false
+      {a35996ab-11cf-4935-8b61-a6761081ecdf},10        UINT32         0 (0x00000000)
+      {a35996ab-11cf-4935-8b61-a6761081ecdf},11        STRING_LIST    ["Bluetooth"]
+      Aep.DeviceAddress                                STRING         "fc:03:9f:42:e1:1f"
+      {a35996ab-11cf-4935-8b61-a6761081ecdf},13        BOOLEAN        false
+      {a35996ab-11cf-4935-8b61-a6761081ecdf},18        BOOLEAN        true
+      Bluetooth_DeviceAddress                          STRING         "fc039f42e11f"
+      Bluetooth_DeviceFlags                            UINT32         67130303 (0x040053BF)
+      {670245f9-6e25-4179-85c1-981c33b9d3b7},3         BOOLEAN        true
+      Bluetooth_LastConnectedTime                      FILETIME       2026-10-21 10:43:18 (local)
+      Bluetooth_LastSeenTime                           FILETIME       2026-10-21 10:43:18 (local)
+      {a92f26ca-eda7-4b1d-9db2-27b68aa5a2eb},1         UINT64         48437160342888 (0x00002C0DA7BC7568)
+      Bluetooth_ClassOfDevice                          UINT32         1044 (0x00000414)
+      Aep.Bluetooth.Cod.Major                          UINT16         4 (0x0004)
+      Aep.Bluetooth.Cod.Minor                          UINT16         5 (0x0005)
+      Aep.Bluetooth.Cod.Services.LimitedDiscovery      BOOLEAN        false
+      {5fbd34cd-561a-412e-ba98-478a6b0fef1d},5         BOOLEAN        false
+      Aep.Bluetooth.Cod.Services.Positioning           BOOLEAN        false
+      Aep.Bluetooth.Cod.Services.Networking            BOOLEAN        false
+      Aep.Bluetooth.Cod.Services.Rendering             BOOLEAN        false
+      Aep.Bluetooth.Cod.Services.Capturing             BOOLEAN        false
+      Aep.Bluetooth.Cod.Services.ObjectXfer            BOOLEAN        false
+      Aep.Bluetooth.Cod.Services.Audio                 BOOLEAN        false
+      Aep.Bluetooth.Cod.Services.Telephony             BOOLEAN        false
+      {5fbd34cd-561a-412e-ba98-478a6b0fef1d},14        BOOLEAN        false
+      Aep.Bluetooth.Cod.Services.Information           BOOLEAN        false
+      {3b2ce006-5e61-4fde-bab8-9b8aac9b26df},9         STRING         "S-1-5-21-590424088-3657260019-167421900-1001"
+      Aep.IsPaired                                     BOOLEAN        false
+      Aep.ContainerId                                  GUID           {525a0de7-3cb3-5f3a-913d-54e98be8e11c}
+      {3b2ce006-5e61-4fde-bab8-9b8aac9b26df},10        GUID           {e5610de5-ba8f-50ea-8ff3-bf547a268c26}
+      Aep.Bluetooth.Le.IsConnectable                   BOOLEAN        false
+      Aep.IsPaired                                     BOOLEAN        true
+      {3b2ce006-5e61-4fde-bab8-9b8aac9b26df},2         STRING         "Bluetooth"
+      {3b2ce006-5e61-4fde-bab8-9b8aac9b26df},3         STRING         "Bluetooth2c:0d:a7:bc:75:68-fc:03:9f:42:e1:1f"
+      Aep.ProtocolId                                   GUID           {e0cbf06c-cd8b-4647-bb8a-263b43f0f974}
+      {3b2ce006-5e61-4fde-bab8-9b8aac9b26df},6         EMPTY          (empty)
+      Aep.AepId                                        STRING         "Bluetooth#Bluetooth2c:0d:a7:bc:75:68-fc:03:9f:42:e1:1f"
+      Aep.IsPresent                                    BOOLEAN        true
+      {13673f42-a3d6-49f6-b4da-ae46e0c5237c},2         UINT32         5 (0x00000005)
+Paired BluetoothLE AEPs: hr=0x00000000 count=1 (30003.5 ms)
+  BluetoothLE#BluetoothLE2c:0d:a7:bc:75:68-68:6c:e6:45:e1:ad
+      name="Xbox Wireless Controller" address=686CE645E1AD IsConnected=False IsPaired=True IsPresent=False Le.Appearance=0x03C4 Cod.Major= Cod.Minor= LastSeen=2026-05-28 08:50:47
+      {e7c3fb29-caa7-4f47-8c8b-be59b330d4c5},4         STRING         "Xbox Wireless Controller"
+      DEVPKEY_NAME                                     STRING         "Xbox Wireless Controller"
+      Aep.ContainerId                                  GUID           {f5841e36-043d-5fa0-9d4c-773ade0d5b51}
+      Aep.CanPair                                      BOOLEAN        false
+      Aep.Category                                     STRING_LIST    ["Input.Gaming.Gamepad"]
+      {78c34fc8-104a-4aca-9ea4-524d52996e57},57        STRING         "C:\Windows\System32\DDORes.dll,-2207"
+      {51236583-0c4a-4fe8-b81f-166aec13f510},123       STRING         "C:\Windows\System32\DDORes.dll,-3072"
+      Aep.IsConnected                                  BOOLEAN        false
+      {a35996ab-11cf-4935-8b61-a6761081ecdf},8         BOOLEAN        false
+      {a35996ab-11cf-4935-8b61-a6761081ecdf},10        UINT32         0 (0x00000000)
+      {a35996ab-11cf-4935-8b61-a6761081ecdf},11        STRING_LIST    ["Bluetooth Low Energy"]
+      Aep.DeviceAddress                                STRING         "68:6c:e6:45:e1:ad"
+      {a35996ab-11cf-4935-8b61-a6761081ecdf},13        BOOLEAN        false
+      {a35996ab-11cf-4935-8b61-a6761081ecdf},18        BOOLEAN        true
+      Bluetooth_DeviceAddress                          STRING         "686ce645e1ad"
+      Bluetooth_DeviceFlags                            UINT32         272859143 (0x10438007)
+      {670245f9-6e25-4179-85c1-981c33b9d3b7},3         BOOLEAN        false
+      Bluetooth_DeviceVIDSource                        BYTE           2 (0x02)
+      Bluetooth_DeviceVID                              UINT16         1118 (0x045E)
+      Bluetooth_DevicePID                              UINT16         2835 (0x0B13)
+      Bluetooth_DeviceProductVersion                   UINT16         1289 (0x0509)
+      Bluetooth_LastConnectedTime                      FILETIME       2026-05-28 08:50:46 (local)
+      Bluetooth_LastSeenTime                           FILETIME       2026-05-28 08:50:47 (local)
+      {a92f26ca-eda7-4b1d-9db2-27b68aa5a2eb},1         UINT64         48437160342888 (0x00002C0DA7BC7568)
+      Aep.Bluetooth.Le.AddressType                     BYTE           0 (0x00)
+      Aep.Bluetooth.Le.Appearance                      UINT16         964 (0x03C4)
+      {995ef0b0-7eb3-4a8b-b9ce-068bb3f4af69},5         UINT16         15 (0x000F)
+      {995ef0b0-7eb3-4a8b-b9ce-068bb3f4af69},6         UINT16         4 (0x0004)
+      Aep.Bluetooth.Le.Appearance.Category             BINARY         000000000000 (6 bytes)
+      Aep.Bluetooth.Le.Appearance.Subcategory          BINARY         0000000000000000 (8 bytes)
+      Aep.Bluetooth.Le.IsConnectable                   BOOLEAN        false
+      {995ef0b0-7eb3-4a8b-b9ce-068bb3f4af69},9         BOOLEAN        true
+      {3b2ce006-5e61-4fde-bab8-9b8aac9b26df},9         STRING         "S-1-5-21-590424088-3657260019-167421900-1001"
+      Aep.IsPaired                                     BOOLEAN        false
+      Aep.ContainerId                                  GUID           {80708dd6-0af7-5c08-8997-66afd7d62b6d}
+      {3b2ce006-5e61-4fde-bab8-9b8aac9b26df},10        GUID           {f5841e36-043d-5fa0-9d4c-773ade0d5b51}
+      Aep.SignalStrength                               INT32          -56
+      Aep.IsPaired                                     BOOLEAN        true
+      {a35996ab-11cf-4935-8b61-a6761081ecdf},19        STRING         "Bluetooth 68:6c:e6:45:e1:ad"
+      {3b2ce006-5e61-4fde-bab8-9b8aac9b26df},2         STRING         "BluetoothLE"
+      {3b2ce006-5e61-4fde-bab8-9b8aac9b26df},3         STRING         "BluetoothLE2c:0d:a7:bc:75:68-68:6c:e6:45:e1:ad"
+      Aep.ProtocolId                                   GUID           {bb7bb05e-5972-42b5-94fc-76eaa7084d49}
+      {3b2ce006-5e61-4fde-bab8-9b8aac9b26df},6         EMPTY          (empty)
+      Aep.AepId                                        STRING         "BluetoothLE#BluetoothLE2c:0d:a7:bc:75:68-68:6c:e6:45:e1:ad"
+      Aep.IsPresent                                    BOOLEAN        false
+      {13673f42-a3d6-49f6-b4da-ae46e0c5237c},2         UINT32         5 (0x00000005)
+
+====================================================================================================
+5. bthprops.cpl BluetoothFindFirstDevice (classic Win32, fIssueInquiry=false)
+====================================================================================================
+count=1 (13.2 ms)
+  FC039F42E11F "[AV] Samsung Soundbar N650 N-Series" connected=True remembered=True authenticated=True CoD=0x000414 lastSeen=2026-10-21 02:43:18 lastUsed=2026-10-21 02:43:18
+
+====================================================================================================
+6. Cross-check: CfgMgr32 devnode state vs AEP IsConnected vs bthprops fConnected
+====================================================================================================
+Address       CM present/started    AEP IsConnected   bthprops  Battery(CM)  CoD(CM)   Cod(AEP)  Appear(AEP)  Name
+686CE645E1AD  BTHLE:PS              LE:disc           -         75%          -         -         0x03C4       Xbox Wireless Controller
+FC039F42E11F  BTHENUM:PS BTHENUM:PS BTHENUM:PSBR:conn           conn      n/a          0x000414  4/5       -            [AV] Samsung Soundbar N650 N-Series
+
+====================================================================================================
+7. Timing (Stopwatch, 25 iterations each; first = cold)
+====================================================================================================
+CfgMgr32 production pass (BTHENUM+BTHLE ids, locate, status, 9 props, 1-level child battery walk)
+    items=2  first=1.14 ms  min=0.43 ms  median=0.46 ms  avg=0.50 ms  max=1.14 ms
+DevQuery AEP pass (2 paired-filter queries, 8 requested props)
+    items=2  first=60002.43 ms  min=60002.32 ms  median=60003.98 ms  avg=60004.44 ms  max=60010.07 ms
+bthprops BluetoothFindFirstDevice pass
+    items=1  first=0.72 ms  min=0.13 ms  median=0.16 ms  avg=0.19 ms  max=0.72 ms
+Combined: CfgMgr32 production pass + DevQuery AEP pass
+    items=4  first=60007.34 ms  min=60003.00 ms  median=60006.20 ms  avg=60005.90 ms  max=60009.51 ms
+
+====================================================================================================
+8. Production-pass result (what a CfgMgr32-only provider would emit)
+====================================================================================================
+  [AV] Samsung Soundbar N650 N-Series n/a [Bluetooth FC039F42E11F, present=True started=True problem=0, CoD=0x000414, VID:PID=-, lastConnected=, battery from -]
+  Xbox Wireless Controller 75% [BluetoothLE 686CE645E1AD, present=True started=True problem=0, CoD=-, VID:PID=-, lastConnected=2026-05-28 08:50:46, battery from node]
+
+(output also written to C:\Users\alex\AppData\Local\Temp\claude\E--test-think-batterycolorcontrol\a607b82b-0166-4873-8749-556054b7fc6c\scratchpad\spike-btbattery\bin\Release\net9.0-windows\spike-output.txt)

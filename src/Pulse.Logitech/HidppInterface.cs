@@ -16,7 +16,9 @@ internal enum InterfaceRole
 
 /// <summary>
 /// Discovery and polling for one HID++ interface. Keeps the opened <see cref="HidppTransport"/> and the devices found
-/// behind it between polls; re-runs discovery every few minutes or when the role is still unknown.
+/// behind it between polls; re-runs discovery every few minutes or when the role is still unknown. The transport is
+/// optional: after a fault the owner closes it (<see cref="CloseTransport"/>) and the interface lives on with its cached
+/// devices, marked offline, until <see cref="Backoff"/> allows a reopen (<see cref="Attach"/>).
 /// </summary>
 internal sealed class HidppInterface : IDisposable
 {
@@ -26,19 +28,27 @@ internal sealed class HidppInterface : IDisposable
 
     private readonly ILogger _logger;
     private readonly List<HidppDevice> _devices = new();
+    private HidppTransport? _transport;
     private DateTimeOffset _lastDiscovery = DateTimeOffset.MinValue;
+    private string? _lastReceiverSummary;
 
-    public HidppInterface(HidppInterfaceInfo info, HidppTransport transport, ILogger logger)
+    public HidppInterface(HidppInterfaceInfo info, ILogger logger)
     {
         Info = info;
-        Transport = transport;
         _logger = logger;
         Family = info.IsBluetooth ? ReceiverFamily.None : ReceiverFamilies.FromProductId(info.ProductId);
     }
 
     public HidppInterfaceInfo Info { get; }
 
-    public HidppTransport Transport { get; }
+    /// <summary>The open transport, or null while the interface is closed (never opened yet, or closed after a fault).</summary>
+    public HidppTransport? Transport => _transport;
+
+    /// <summary>True when a transport is attached and has not faulted.</summary>
+    public bool IsOpen => _transport is { IsFaulted: false };
+
+    /// <summary>Retry schedule for opening / reopening the transport; reset by the owner after a successful poll.</summary>
+    public HidppBackoff Backoff { get; } = new();
 
     public InterfaceRole Role { get; private set; }
 
@@ -50,31 +60,54 @@ internal sealed class HidppInterface : IDisposable
 
     public IReadOnlyList<HidppDevice> Devices => _devices;
 
+    /// <summary>Takes ownership of a freshly opened transport. Cached devices and discovery state are kept.</summary>
+    public void Attach(HidppTransport transport)
+    {
+        var previous = _transport;
+        _transport = transport;
+        previous?.Dispose();
+    }
+
+    /// <summary>
+    /// Disposes the transport (closes the HID handles, which stops its reader threads) and marks every cached device
+    /// offline so <see cref="Snapshot"/> reports them disconnected with their last known level. Safe when already closed.
+    /// </summary>
+    public void CloseTransport()
+    {
+        var transport = _transport;
+        _transport = null;
+        transport?.Dispose();
+        foreach (var device in _devices) device.MarkOffline();
+    }
+
     /// <summary>Runs discovery when due, refreshes every device and returns their current snapshots.</summary>
     public async Task<List<BatteryDevice>> PollAsync(CancellationToken cancellationToken)
     {
+        var transport = _transport;
+        if (transport is null || transport.IsFaulted) return Snapshot();
+
         var now = DateTimeOffset.Now;
         var interval = Role == InterfaceRole.NotHidpp ? RetryNotHidppInterval : RediscoverInterval;
         // A receiver without paired devices is re-read every poll (three cheap register reads) so a new pairing shows up at once.
         var emptyReceiver = Role == InterfaceRole.Receiver && _devices.Count == 0;
         if (Role == InterfaceRole.Unknown || emptyReceiver || now - _lastDiscovery > interval)
         {
-            await DiscoverAsync(cancellationToken).ConfigureAwait(false);
+            await DiscoverAsync(transport, cancellationToken).ConfigureAwait(false);
         }
 
         var result = new List<BatteryDevice>(_devices.Count);
         foreach (var device in _devices)
         {
-            if (Transport.IsFaulted) break;
+            if (transport.IsFaulted) break;
             cancellationToken.ThrowIfCancellationRequested();
-            await device.RefreshAsync(Transport, cancellationToken).ConfigureAwait(false);
+            await device.RefreshAsync(transport, cancellationToken).ConfigureAwait(false);
             var snapshot = ToBatteryDevice(device);
             if (snapshot is not null) result.Add(snapshot);
         }
         return result;
     }
 
-    /// <summary>Cached snapshots without any I/O (used when the poll budget is exhausted).</summary>
+    /// <summary>Cached snapshots without any I/O (used when the poll budget is exhausted or the transport is closed).</summary>
     public List<BatteryDevice> Snapshot()
     {
         var result = new List<BatteryDevice>(_devices.Count);
@@ -86,15 +119,15 @@ internal sealed class HidppInterface : IDisposable
         return result;
     }
 
-    public void Dispose() => Transport.Dispose();
+    public void Dispose() => CloseTransport();
 
-    private async Task DiscoverAsync(CancellationToken cancellationToken)
+    private async Task DiscoverAsync(HidppTransport transport, CancellationToken cancellationToken)
     {
         _lastDiscovery = DateTimeOffset.Now;
 
         var probe = new HidppDevice(_logger, Hidpp.ReceiverIndex);
-        var answered = await probe.PingAsync(Transport, cancellationToken).ConfigureAwait(false);
-        if (Transport.IsFaulted) return;
+        var answered = await probe.PingAsync(transport, cancellationToken).ConfigureAwait(false);
+        if (transport.IsFaulted) return;
 
         if (answered && probe.ProtocolMajor >= 2)
         {
@@ -108,11 +141,11 @@ internal sealed class HidppInterface : IDisposable
         if (answered)
         {
             // HID++ 1.0 at 0xFF: a receiver (confirmed by its info register) or, rarely, an old direct device.
-            var (serial, slots, kind) = await HidppReceiverRegisters.ReadReceiverInfoAsync(Transport, cancellationToken).ConfigureAwait(false);
-            if (Transport.IsFaulted) return;
+            var (serial, slots, kind) = await HidppReceiverRegisters.ReadReceiverInfoAsync(transport, cancellationToken).ConfigureAwait(false);
+            if (transport.IsFaulted) return;
             if (serial is not null || Family != ReceiverFamily.None)
             {
-                await EnumerateReceiverAsync(serial, slots, cancellationToken).ConfigureAwait(false);
+                await EnumerateReceiverAsync(transport, serial, slots, cancellationToken).ConfigureAwait(false);
                 return;
             }
 
@@ -125,7 +158,7 @@ internal sealed class HidppInterface : IDisposable
         if (Family != ReceiverFamily.None)
         {
             _logger.LogDebug("No ping answer from receiver PID 0x{Pid:X4} on {Key}; enumerating by product id", Info.ProductId, Info.Key);
-            await EnumerateReceiverAsync(null, Hidpp.MaxReceiverSlots, cancellationToken).ConfigureAwait(false);
+            await EnumerateReceiverAsync(transport, null, Hidpp.MaxReceiverSlots, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -134,7 +167,7 @@ internal sealed class HidppInterface : IDisposable
         _devices.Clear();
     }
 
-    private async Task EnumerateReceiverAsync(string? serial, int slots, CancellationToken cancellationToken)
+    private async Task EnumerateReceiverAsync(HidppTransport transport, string? serial, int slots, CancellationToken cancellationToken)
     {
         Role = InterfaceRole.Receiver;
         ReceiverSerial = string.IsNullOrEmpty(Info.SerialNumber) ? serial ?? string.Empty : Info.SerialNumber;
@@ -145,19 +178,19 @@ internal sealed class HidppInterface : IDisposable
         for (var slot = 1; slot <= MaxSlots; slot++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (Transport.IsFaulted) return;
+            if (transport.IsFaulted) return;
 
             HidppDevice? device = null;
             if (pairingRegisters)
             {
-                var (pairing, kind, error) = await HidppReceiverRegisters.ReadPairingAsync(Transport, Family, slot, cancellationToken).ConfigureAwait(false);
+                var (pairing, kind, error) = await HidppReceiverRegisters.ReadPairingAsync(transport, Family, slot, cancellationToken).ConfigureAwait(false);
                 if (pairing is not null)
                 {
                     device = Existing(slot, pairing.Wpid) ?? new HidppDevice(_logger, (byte)slot);
                     device.Wpid = pairing.Wpid;
                     if (device.Kind == DeviceKind.Unknown || !device.FeaturesDiscovered) device.Kind = pairing.Kind;
                     device.PairingSerial ??= pairing.Serial;
-                    device.ReceiverName = await HidppReceiverRegisters.ReadDeviceNameAsync(Transport, Family, slot, cancellationToken).ConfigureAwait(false) ?? device.ReceiverName;
+                    device.ReceiverName = await HidppReceiverRegisters.ReadDeviceNameAsync(transport, Family, slot, cancellationToken).ConfigureAwait(false) ?? device.ReceiverName;
                 }
                 else if (slot == 1 && (kind == HidppResultKind.Timeout || error == Hidpp1Error.InvalidSubId))
                 {
@@ -173,7 +206,7 @@ internal sealed class HidppInterface : IDisposable
             if (!pairingRegisters)
             {
                 var probe = Existing(slot, null) ?? new HidppDevice(_logger, (byte)slot);
-                var online = await probe.PingAsync(Transport, cancellationToken).ConfigureAwait(false);
+                var online = await probe.PingAsync(transport, cancellationToken).ConfigureAwait(false);
                 // 0x09 = paired but asleep; 0x08 / timeout = empty slot.
                 if (online || probe.LastPingError == Hidpp1Error.ResourceError) device = probe;
             }
@@ -182,9 +215,13 @@ internal sealed class HidppInterface : IDisposable
         }
 
         KeepOrReplace(found);
-        _logger.LogInformation("Receiver {Family} PID 0x{Pid:X4} serial {Serial}: {Count} paired device(s) in {Slots} slot(s): {Devices}",
-            Family, Info.ProductId, ReceiverSerial, found.Count, MaxSlots,
-            string.Join(", ", found.Select(d => $"#{d.Index} '{d.Name}' {d.Kind} wpid={d.Wpid} serial={d.PairingSerial}")));
+
+        // The pairing table is re-read every few minutes (and on every retry of a flaky interface); only a change is news.
+        var summary = string.Join(", ", found.Select(d => $"#{d.Index} '{d.Name}' {d.Kind} wpid={d.Wpid} serial={d.PairingSerial}"));
+        var level = summary == _lastReceiverSummary ? LogLevel.Debug : LogLevel.Information;
+        _lastReceiverSummary = summary;
+        _logger.Log(level, "Receiver {Family} PID 0x{Pid:X4} serial {Serial}: {Count} paired device(s) in {Slots} slot(s): {Devices}",
+            Family, Info.ProductId, ReceiverSerial, found.Count, MaxSlots, summary);
     }
 
     private HidppDevice? Existing(int slot, string? wpid)

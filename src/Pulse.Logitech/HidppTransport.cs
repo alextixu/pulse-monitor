@@ -270,6 +270,7 @@ internal sealed class HidppTransport : IDisposable
         // A dead reader makes the whole interface unusable (its replies would never arrive); the owner reopens it later.
         if (!token.IsCancellationRequested) SetFault($"{name} reader stopped");
         _inbox.Writer.TryComplete();
+        _logger.LogDebug("HID++ interface {Key} {Name} reader exited ({Reason})", Key, name, token.IsCancellationRequested ? "disposed" : _fault);
     }
 
     private void SetFault(string reason)

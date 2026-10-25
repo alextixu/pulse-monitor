@@ -1,10 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
-    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <!-- Plain net9.0-windows on purpose: no Windows SDK projection, so no Microsoft.Windows.SDK.NET.dll / WinRT.Runtime.dll in the publish.
+         It pins TargetPlatformVersion to 7.0, and the SDK (NETSDK1135) forbids a higher SupportedOSPlatformVersion; the CfgMgr32 and
+         kernel32 calls used here predate Windows 10 anyway, so no minimum is declared. -->
+    <TargetFramework>net9.0-windows</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Description>Windows-only providers: Bluetooth battery (CfgMgr32 / WinRT), system battery, UAC elevation, auto-start.</Description>
+    <Description>Windows-only providers: Bluetooth battery (CfgMgr32), system battery, UAC elevation, auto-start.</Description>
   </PropertyGroup>
 
   <ItemGroup>

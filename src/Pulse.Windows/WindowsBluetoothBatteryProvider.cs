@@ -1,44 +1,28 @@
-using System.Globalization;
+using System.Buffers.Binary;
+using System.Diagnostics;
+using System.Text;
+using Microsoft.Extensions.Logging;
 using Pulse.Core.Abstractions;
 using Pulse.Core.Models;
-using Microsoft.Extensions.Logging;
-using Windows.Devices.Bluetooth;
-using Windows.Devices.Enumeration;
-using Windows.Devices.Enumeration.Pnp;
 
 namespace Pulse.Windows;
 
 /// <summary>
-/// Lists every paired Bluetooth (classic + LE) device via WinRT association endpoints and attaches the battery
-/// level Windows caches on the BTHENUM\ / BTHLE\ device node (DEVPKEY_Bluetooth_Battery).
-/// Devices without a battery value are reported only while connected; devices with one are always reported
-/// so the last known level stays visible.
+/// Lists every paired Bluetooth (classic + LE) device straight from the PnP device tree (CfgMgr32) and attaches the
+/// battery level Windows caches on the BTHENUM\ / BTHLE\ device node (DEVPKEY_Bluetooth_Battery).
+/// Paired-but-absent devices are located as phantoms so a remembered device keeps its last known level.
+/// Devices without a battery value are reported only while connected; devices with one are always reported.
+/// A full pass is a few dozen registry-backed reads (~1 ms); nothing talks to the radio.
 /// </summary>
 public sealed class WindowsBluetoothBatteryProvider : IBatteryProvider
 {
     public const string ProviderName = "Bluetooth";
 
-    /// <summary>DEVPKEY_Bluetooth_Battery (DEVPROP_TYPE_BYTE, 0..100) as a WinRT property string.</summary>
-    public const string BatteryPropertyKey = "{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2";
+    private const string ClassicEnumerator = "BTHENUM";
+    private const string LowEnergyEnumerator = "BTHLE";
 
-    private const string PropIsConnected = "System.Devices.Aep.IsConnected";
-    private const string PropDeviceAddress = "System.Devices.Aep.DeviceAddress";
-    private const string PropLeAppearance = "System.Devices.Aep.Bluetooth.Le.Appearance";
-    private const string PropCodMajor = "System.Devices.Aep.Bluetooth.Cod.Major";
-    private const string PropCodMinor = "System.Devices.Aep.Bluetooth.Cod.Minor";
-    private const string PropIsPaired = "System.Devices.Aep.IsPaired";
-    private const string PropInstanceId = "System.Devices.DeviceInstanceId";
-    private const string PropDisplayName = "System.ItemNameDisplay";
-
-    /// <summary>Limits the PnP walk to the Bluetooth enumerators (BTHENUM\, BTHLE\, BTH\): a dozen nodes instead of ~500.</summary>
-    private const string PnpAqsFilter = "System.Devices.DeviceInstanceId:~<\"BTH\"";
-
-    private static readonly string[] EndpointProperties =
-    [
-        PropIsConnected, PropDeviceAddress, PropLeAppearance, PropCodMajor, PropCodMinor, PropIsPaired,
-    ];
-
-    private static readonly string[] PnpProperties = [PropInstanceId, PropDisplayName, BatteryPropertyKey];
+    /// <summary>Upper bound for the child walk (a GATT device exposes a handful of service nodes).</summary>
+    private const int MaxChildren = 64;
 
     private readonly ILogger<WindowsBluetoothBatteryProvider> _logger;
     private int _failureLogged; // first failure is logged at Warning, repeats (timer polling) at Debug
@@ -52,48 +36,52 @@ public sealed class WindowsBluetoothBatteryProvider : IBatteryProvider
 
     public bool IsSupported => OperatingSystem.IsWindows();
 
-    public async Task<IReadOnlyList<BatteryDevice>> GetDevicesAsync(CancellationToken cancellationToken = default)
+    /// <summary>Synchronous under the hood: the caller (MonitoringService) already runs providers on the thread pool.</summary>
+    public Task<IReadOnlyList<BatteryDevice>> GetDevicesAsync(CancellationToken cancellationToken = default)
     {
-        if (!IsSupported) return Array.Empty<BatteryDevice>();
+        if (!IsSupported) return Task.FromResult<IReadOnlyList<BatteryDevice>>(Array.Empty<BatteryDevice>());
         cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(GetDevices(cancellationToken));
+    }
 
-        // Three independent WinRT queries; run them concurrently (~100 ms in total, no inquiry is issued).
-        var classicTask = FindEndpointsAsync(BluetoothDevice.GetDeviceSelectorFromPairingState(true), isLowEnergy: false, cancellationToken);
-        var leTask = FindEndpointsAsync(BluetoothLEDevice.GetDeviceSelectorFromPairingState(true), isLowEnergy: true, cancellationToken);
-        var batteryTask = ReadBatteryLevelsAsync(cancellationToken);
-        await Task.WhenAll(classicTask, leTask, batteryTask).ConfigureAwait(false);
-
-        var endpoints = new Dictionary<string, Endpoint>(StringComparer.Ordinal);
-        foreach (var endpoint in classicTask.Result.Concat(leTask.Result))
+    private IReadOnlyList<BatteryDevice> GetDevices(CancellationToken cancellationToken)
+    {
+        var started = Stopwatch.GetTimestamp();
+        var nodes = new Dictionary<string, Node>(StringComparer.Ordinal);
+        try
         {
-            endpoints[endpoint.Address] = endpoints.TryGetValue(endpoint.Address, out var existing)
-                ? Merge(existing, endpoint)
-                : endpoint;
+            CollectNodes(ClassicEnumerator, isLowEnergy: false, nodes, cancellationToken);
+            CollectNodes(LowEnergyEnumerator, isLowEnergy: true, nodes, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogFailure(ex, "Bluetooth device-node enumeration failed");
+            return Array.Empty<BatteryDevice>();
         }
 
-        var batteries = batteryTask.Result;
         var now = DateTimeOffset.Now;
-        var devices = new List<BatteryDevice>(endpoints.Count);
-        foreach (var endpoint in endpoints.Values)
+        var devices = new List<BatteryDevice>(nodes.Count);
+        foreach (var node in nodes.Values)
         {
-            batteries.TryGetValue(endpoint.Address, out var battery);
-            if (battery.Percent is null && !endpoint.IsConnected) continue;
+            if (node.Percent is null && !node.IsConnected) continue;
 
-            var name = !string.IsNullOrWhiteSpace(endpoint.Name) ? endpoint.Name
-                : !string.IsNullOrWhiteSpace(battery.Name) ? battery.Name
-                : BluetoothAddress.ToDisplay(endpoint.Address);
-
+            var name = node.Name ?? BluetoothAddress.ToDisplay(node.Address);
             devices.Add(new BatteryDevice
             {
-                Id = "bt:" + BluetoothAddress.ToDisplay(endpoint.Address),
+                Id = "bt:" + BluetoothAddress.ToDisplay(node.Address),
                 Name = name,
-                Kind = BluetoothDeviceKindInference.Infer(endpoint.Appearance, endpoint.CodMajor, endpoint.CodMinor, name),
-                Connection = endpoint.IsLowEnergy ? ConnectionType.BluetoothLE : ConnectionType.Bluetooth,
+                // LE appearance is only exposed on the association endpoint, not on the device node, so it is never available here.
+                Kind = BluetoothDeviceKindInference.Infer(appearance: null, node.ClassOfDevice, node.ContainerCategory, name),
+                Connection = node.IsLowEnergy ? ConnectionType.BluetoothLE : ConnectionType.Bluetooth,
                 Source = ProviderName,
-                Percent = battery.Percent,
-                Status = ToStatus(battery.Percent),
-                IsConnected = endpoint.IsConnected,
-                Detail = endpoint.IsLowEnergy ? "藍牙 LE" : "藍牙",
+                Percent = node.Percent,
+                Status = ToStatus(node.Percent),
+                IsConnected = node.IsConnected,
+                Detail = node.IsLowEnergy ? "藍牙 LE" : "藍牙",
                 UpdatedAt = now,
             });
         }
@@ -101,127 +89,192 @@ public sealed class WindowsBluetoothBatteryProvider : IBatteryProvider
         devices.Sort(static (a, b) => a.IsConnected != b.IsConnected
             ? (a.IsConnected ? -1 : 1)
             : string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase));
+
+        _logger.LogTrace("Bluetooth: {Nodes} device node(s) -> {Devices} device(s) in {Elapsed:F1} ms",
+            nodes.Count, devices.Count, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         return devices;
     }
 
-    private async Task<List<Endpoint>> FindEndpointsAsync(string selector, bool isLowEnergy, CancellationToken cancellationToken)
+    /// <summary>Reads every <c>{enumerator}\Dev_&lt;address&gt;</c> node and merges it into <paramref name="nodes"/> by address.</summary>
+    private void CollectNodes(string enumerator, bool isLowEnergy, Dictionary<string, Node> nodes, CancellationToken cancellationToken)
     {
-        var result = new List<Endpoint>();
-        DeviceInformationCollection infos;
-        try
+        foreach (var instanceId in ListDeviceInstanceIds(enumerator))
         {
-            infos = await DeviceInformation
-                .FindAllAsync(selector, EndpointProperties, DeviceInformationKind.AssociationEndpoint)
-                .AsTask(cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            LogFailure(ex, isLowEnergy ? "Bluetooth LE endpoint enumeration failed" : "Bluetooth endpoint enumeration failed");
-            return result;
-        }
+            cancellationToken.ThrowIfCancellationRequested();
 
-        foreach (var info in infos)
-        {
+            // Service nodes (BTHENUM\{uuid}_LOCALMFG&...) duplicate the device node's address; the device node carries the battery.
+            if (!BluetoothAddress.TryExtractFromInstanceId(instanceId, out var address, out var priority)
+                || priority != BluetoothAddress.DeviceNodePriority)
+            {
+                continue;
+            }
+
+            Node? node;
             try
             {
-                var props = info.Properties;
-                if (!BluetoothAddress.TryNormalize(GetString(props, PropDeviceAddress), out var address)
-                    && !BluetoothAddress.TryNormalize(AddressFromEndpointId(info.Id), out address))
-                {
-                    _logger.LogDebug("Skipping endpoint without a usable address: {Id}", info.Id);
-                    continue;
-                }
-
-                if (GetBool(props, PropIsPaired) is false) continue; // selector already filters, belt and braces
-
-                result.Add(new Endpoint(
-                    address,
-                    info.Name ?? string.Empty,
-                    isLowEnergy,
-                    GetBool(props, PropIsConnected) ?? false,
-                    GetUInt16(props, PropLeAppearance),
-                    GetUInt16(props, PropCodMajor),
-                    GetUInt16(props, PropCodMinor)));
+                node = ReadNode(instanceId, address, isLowEnergy);
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "Failed to read endpoint {Id}", info.Id);
+                _logger.LogDebug(ex, "Failed to read device node {InstanceId}", instanceId);
+                continue;
             }
-        }
 
-        return result;
+            if (node is null) continue;
+            nodes[node.Address] = nodes.TryGetValue(node.Address, out var existing) ? Merge(existing, node) : node;
+        }
     }
 
-    /// <summary>Battery level per address from the BTHENUM\ / BTHLE\ device nodes (plus service children as a fallback).</summary>
-    private async Task<Dictionary<string, BatteryNode>> ReadBatteryLevelsAsync(CancellationToken cancellationToken)
+    private Node? ReadNode(string instanceId, string addressFromId, bool isLowEnergy)
     {
-        var map = new Dictionary<string, BatteryNode>(StringComparer.Ordinal);
-        PnpObjectCollection objects;
-        try
+        var cr = CfgMgr32.CM_Locate_DevNodeW(out var devInst, instanceId, CfgMgr32.CM_LOCATE_DEVNODE_PHANTOM);
+        if (cr != CfgMgr32.CR_SUCCESS)
         {
-            objects = await PnpObject
-                .FindAllAsync(PnpObjectType.Device, PnpProperties, PnpAqsFilter)
-                .AsTask(cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            LogFailure(ex, "Bluetooth PnP battery enumeration failed");
-            return map;
+            _logger.LogDebug("CM_Locate_DevNodeW failed (CR 0x{Code:X2}) for {InstanceId}", cr, instanceId);
+            return null;
         }
 
-        foreach (var obj in objects)
+        // A phantom (paired but not present) node has no live status: CR_NO_SUCH_DEVNODE. Present LE devices that are out
+        // of reach stay started with DN_DEVICE_DISCONNECTED set (and Device_IsPresent true), hence the extra bit test.
+        var statusCr = CfgMgr32.CM_Get_DevNode_Status(out var status, out var problem, devInst, 0);
+        var present = statusCr == CfgMgr32.CR_SUCCESS;
+        if (!present && statusCr != CfgMgr32.CR_NO_SUCH_DEVNODE)
         {
-            try
-            {
-                var props = obj.Properties;
-                var instanceId = GetString(props, PropInstanceId) ?? obj.Id;
-                if (!BluetoothAddress.TryExtractFromInstanceId(instanceId, out var address, out var priority)) continue;
-                if (!props.TryGetValue(BatteryPropertyKey, out var raw) || raw is null) continue;
-
-                var percent = ToPercent(raw);
-                if (percent is null)
-                {
-                    _logger.LogDebug("Ignoring out-of-range battery value {Value} on {InstanceId}", raw, instanceId);
-                    continue;
-                }
-
-                if (!map.TryGetValue(address, out var existing) || priority > existing.Priority)
-                {
-                    map[address] = new BatteryNode(percent, GetString(props, PropDisplayName), priority);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Failed to read PnP node {Id}", obj.Id);
-            }
+            _logger.LogDebug("CM_Get_DevNode_Status failed (CR 0x{Code:X2}) for {InstanceId}", statusCr, instanceId);
         }
 
-        return map;
+        var connected = present
+            && (status & CfgMgr32.DN_STARTED) != 0
+            && (status & CfgMgr32.DN_HAS_PROBLEM) == 0
+            && problem == 0
+            && (status & CfgMgr32.DN_DEVICE_DISCONNECTED) == 0;
+
+        var address = addressFromId;
+        if (BluetoothAddress.TryNormalize(ReadProperty(devInst, DevPropKeys.BluetoothDeviceAddress, instanceId)?.AsString(), out var reported))
+        {
+            address = reported;
+        }
+
+        var name = NullIfBlank(ReadProperty(devInst, DevPropKeys.DeviceFriendlyName, instanceId)?.AsString())
+            ?? NullIfBlank(ReadProperty(devInst, DevPropKeys.Name, instanceId)?.AsString());
+
+        var percent = ToPercent(ReadProperty(devInst, DevPropKeys.BluetoothBattery, instanceId)?.AsByte(), instanceId)
+            ?? ReadChildBattery(devInst, instanceId);
+
+        var classOfDevice = ReadProperty(devInst, DevPropKeys.BluetoothClassOfDevice, instanceId)?.AsUInt32();
+        var category = NullIfBlank(ReadProperty(devInst, DevPropKeys.DeviceContainerCategory, instanceId)?.AsFirstString());
+
+        return new Node(address, name, isLowEnergy, connected, percent, classOfDevice, category);
     }
 
-    /// <summary>Dual-mode device paired over both transports: keep the connected transport (classic when tied) and pool the metadata.</summary>
-    private static Endpoint Merge(Endpoint a, Endpoint b)
+    /// <summary>Battery level from the first direct child that has one (e.g. the BTHLEDevice\{0000180f-...} GATT battery service).</summary>
+    private int? ReadChildBattery(uint devInst, string instanceId)
     {
-        var primary = a.IsConnected == b.IsConnected ? (a.IsLowEnergy ? b : a) : (a.IsConnected ? a : b);
+        var cr = CfgMgr32.CM_Get_Child(out var child, devInst, 0);
+        for (var i = 0; cr == CfgMgr32.CR_SUCCESS && i < MaxChildren; i++)
+        {
+            var percent = ToPercent(ReadProperty(child, DevPropKeys.BluetoothBattery, instanceId)?.AsByte(), instanceId);
+            if (percent is not null) return percent;
+            cr = CfgMgr32.CM_Get_Sibling(out child, child, 0);
+        }
+
+        return null; // CR_NO_SUCH_DEVNODE simply means "no (more) children" and is the normal exit
+    }
+
+    private unsafe List<string> ListDeviceInstanceIds(string enumerator)
+    {
+        var ids = new List<string>();
+        const uint flags = CfgMgr32.CM_GETIDLIST_FILTER_ENUMERATOR;
+        var cr = CfgMgr32.CM_Get_Device_ID_List_SizeW(out var length, enumerator, flags);
+        if (cr != CfgMgr32.CR_SUCCESS)
+        {
+            _logger.LogDebug("CM_Get_Device_ID_List_SizeW({Enumerator}) failed (CR 0x{Code:X2})", enumerator, cr);
+            return ids;
+        }
+
+        if (length == 0) return ids;
+
+        var buffer = new char[length];
+        fixed (char* p = buffer)
+        {
+            cr = CfgMgr32.CM_Get_Device_ID_ListW(enumerator, p, length, flags);
+        }
+
+        if (cr != CfgMgr32.CR_SUCCESS)
+        {
+            _logger.LogDebug("CM_Get_Device_ID_ListW({Enumerator}) failed (CR 0x{Code:X2})", enumerator, cr);
+            return ids;
+        }
+
+        // REG_MULTI_SZ layout: NUL-separated ids, terminated by an empty string.
+        var start = 0;
+        for (var i = 0; i < buffer.Length; i++)
+        {
+            if (buffer[i] != '\0') continue;
+            if (i == start) break;
+            ids.Add(new string(buffer, start, i - start));
+            start = i + 1;
+        }
+
+        return ids;
+    }
+
+    /// <summary>Reads one property; null when it is not set on the node (CR_NO_SUCH_VALUE) or the read fails (logged at Debug).</summary>
+    private unsafe PropertyValue? ReadProperty(uint devInst, in DEVPROPKEY key, string instanceId)
+    {
+        uint size = 0;
+        var cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, in key, out var type, null, ref size, 0);
+        if (cr == CfgMgr32.CR_NO_SUCH_VALUE) return null;
+        if (cr == CfgMgr32.CR_SUCCESS && size == 0) return new PropertyValue(type, Array.Empty<byte>());
+        if (cr != CfgMgr32.CR_BUFFER_SMALL)
+        {
+            _logger.LogDebug("CM_Get_DevNode_PropertyW({Key}) size query failed (CR 0x{Code:X2}) on {InstanceId}", key, cr, instanceId);
+            return null;
+        }
+
+        var data = new byte[size];
+        fixed (byte* p = data)
+        {
+            cr = CfgMgr32.CM_Get_DevNode_PropertyW(devInst, in key, out type, p, ref size, 0);
+        }
+
+        if (cr != CfgMgr32.CR_SUCCESS)
+        {
+            _logger.LogDebug("CM_Get_DevNode_PropertyW({Key}) failed (CR 0x{Code:X2}) on {InstanceId}", key, cr, instanceId);
+            return null;
+        }
+
+        if (size < data.Length) Array.Resize(ref data, (int)size);
+        return new PropertyValue(type, data);
+    }
+
+    /// <summary>
+    /// Dual-mode device paired over both transports (or duplicate nodes): keep the node that reports a battery, then the
+    /// connected one, then classic; pool the rest of the metadata.
+    /// </summary>
+    private static Node Merge(Node a, Node b)
+    {
+        var primary = (a.Percent is not null) != (b.Percent is not null) ? (a.Percent is not null ? a : b)
+            : a.IsConnected != b.IsConnected ? (a.IsConnected ? a : b)
+            : a.IsLowEnergy && !b.IsLowEnergy ? b
+            : a;
         var secondary = ReferenceEquals(primary, a) ? b : a;
         return primary with
         {
-            Name = string.IsNullOrWhiteSpace(primary.Name) ? secondary.Name : primary.Name,
+            Name = primary.Name ?? secondary.Name,
             IsConnected = a.IsConnected || b.IsConnected,
-            Appearance = primary.Appearance ?? secondary.Appearance,
-            CodMajor = primary.CodMajor ?? secondary.CodMajor,
-            CodMinor = primary.CodMinor ?? secondary.CodMinor,
+            Percent = primary.Percent ?? secondary.Percent,
+            ClassOfDevice = primary.ClassOfDevice ?? secondary.ClassOfDevice,
+            ContainerCategory = primary.ContainerCategory ?? secondary.ContainerCategory,
         };
+    }
+
+    private int? ToPercent(byte? raw, string instanceId)
+    {
+        if (raw is null) return null;
+        if (raw <= 100) return raw;
+        _logger.LogDebug("Ignoring out-of-range battery value {Value} on {InstanceId}", raw, instanceId);
+        return null;
     }
 
     private static BatteryStatus ToStatus(int? percent) => percent switch
@@ -231,45 +284,7 @@ public sealed class WindowsBluetoothBatteryProvider : IBatteryProvider
         _ => BatteryStatus.Unknown,
     };
 
-    /// <summary>"Bluetooth#Bluetooth2c:0d:a7:bc:75:68-fc:03:9f:42:e1:1f" → "fc:03:9f:42:e1:1f".</summary>
-    private static string? AddressFromEndpointId(string? id)
-    {
-        if (string.IsNullOrEmpty(id)) return null;
-        var dash = id.LastIndexOf('-');
-        return dash >= 0 ? id[(dash + 1)..] : null;
-    }
-
-    private static int? ToPercent(object raw)
-    {
-        try
-        {
-            var value = Convert.ToInt32(raw, CultureInfo.InvariantCulture);
-            return value is >= 0 and <= 100 ? value : null;
-        }
-        catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
-        {
-            return null;
-        }
-    }
-
-    private static string? GetString(IReadOnlyDictionary<string, object> props, string key)
-        => props.TryGetValue(key, out var v) ? v as string : null;
-
-    private static bool? GetBool(IReadOnlyDictionary<string, object> props, string key)
-        => props.TryGetValue(key, out var v) && v is bool b ? b : null;
-
-    private static ushort? GetUInt16(IReadOnlyDictionary<string, object> props, string key)
-    {
-        if (!props.TryGetValue(key, out var v) || v is null) return null;
-        try
-        {
-            return v is ushort us ? us : Convert.ToUInt16(v, CultureInfo.InvariantCulture);
-        }
-        catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
-        {
-            return null;
-        }
-    }
+    private static string? NullIfBlank(string? text) => string.IsNullOrWhiteSpace(text) ? null : text;
 
     private void LogFailure(Exception ex, string message)
     {
@@ -283,14 +298,44 @@ public sealed class WindowsBluetoothBatteryProvider : IBatteryProvider
         }
     }
 
-    private sealed record Endpoint(
+    /// <summary>One BTHENUM\ or BTHLE\ device node, reduced to what the provider needs. Address is 12 upper-case hex digits.</summary>
+    private sealed record Node(
         string Address,
-        string Name,
+        string? Name,
         bool IsLowEnergy,
         bool IsConnected,
-        ushort? Appearance,
-        ushort? CodMajor,
-        ushort? CodMinor);
+        int? Percent,
+        uint? ClassOfDevice,
+        string? ContainerCategory);
 
-    private readonly record struct BatteryNode(int? Percent, string? Name, int Priority);
+    /// <summary>Raw DEVPROP value: type tag + bytes, decoded on demand.</summary>
+    private readonly struct PropertyValue
+    {
+        private readonly uint _type;
+        private readonly byte[] _data;
+
+        public PropertyValue(uint type, byte[] data)
+        {
+            _type = type;
+            _data = data;
+        }
+
+        public string? AsString()
+            => _type is CfgMgr32.DEVPROP_TYPE_STRING or CfgMgr32.DEVPROP_TYPE_STRING_INDIRECT
+                ? Encoding.Unicode.GetString(_data).TrimEnd('\0')
+                : null;
+
+        /// <summary>First entry of a STRING_LIST (NUL-separated), or the string itself.</summary>
+        public string? AsFirstString()
+        {
+            if (_type != CfgMgr32.DEVPROP_TYPE_STRING_LIST) return AsString();
+            var all = Encoding.Unicode.GetString(_data);
+            var end = all.IndexOf('\0');
+            return end < 0 ? all : all[..end];
+        }
+
+        public byte? AsByte() => _type == CfgMgr32.DEVPROP_TYPE_BYTE && _data.Length >= 1 ? _data[0] : null;
+
+        public uint? AsUInt32() => _type == CfgMgr32.DEVPROP_TYPE_UINT32 && _data.Length >= 4 ? BinaryPrimitives.ReadUInt32LittleEndian(_data) : null;
+    }
 }

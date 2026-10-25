@@ -4,17 +4,47 @@ namespace Pulse.Windows;
 
 /// <summary>
 /// Maps Bluetooth metadata to a <see cref="DeviceKind"/>: BLE appearance first, then classic Class-of-Device,
-/// then name heuristics.
+/// then Windows' own device-container category, then name heuristics.
 /// </summary>
 internal static class BluetoothDeviceKindInference
 {
-    public static DeviceKind Infer(ushort? appearance, ushort? codMajor, ushort? codMinor, string? name)
+    /// <param name="appearance">Bluetooth SIG LE appearance, when known.</param>
+    /// <param name="classOfDevice">Raw 24-bit classic Class-of-Device (DEVPKEY_Bluetooth_ClassOfDevice), when known.</param>
+    /// <param name="containerCategory">DEVPKEY_DeviceContainer_Category entry such as "Audio.Speakers", when known.</param>
+    /// <param name="name">Display name, used as the last resort.</param>
+    public static DeviceKind Infer(ushort? appearance, uint? classOfDevice, string? containerCategory, string? name)
     {
         var kind = DeviceKind.Unknown;
         if (appearance is { } ap) kind = FromAppearance(ap);
-        if (kind == DeviceKind.Unknown && codMajor is { } major) kind = FromClassOfDevice(major, codMinor);
+        if (kind == DeviceKind.Unknown && classOfDevice is { } cod) kind = FromClassOfDevice(cod);
+        if (kind == DeviceKind.Unknown && !string.IsNullOrWhiteSpace(containerCategory)) kind = FromContainerCategory(containerCategory);
         if (kind == DeviceKind.Unknown && !string.IsNullOrWhiteSpace(name)) kind = FromName(name);
         return kind;
+    }
+
+    /// <summary>Raw Class-of-Device: major class in bits 12..8, minor class in bits 7..2.</summary>
+    internal static DeviceKind FromClassOfDevice(uint classOfDevice)
+        => FromClassOfDevice((ushort)((classOfDevice >> 8) & 0x1F), (ushort)((classOfDevice >> 2) & 0x3F));
+
+    /// <summary>
+    /// DEVPKEY_DeviceContainer_Category values ("Audio.Speakers", "Input.Gaming.Gamepad", "Communication.Phone", ...),
+    /// matched by prefix. Windows derives these from the same CoD / appearance / GATT data, so they are a reliable
+    /// stand-in when the LE appearance itself is not available.
+    /// </summary>
+    internal static DeviceKind FromContainerCategory(string category)
+    {
+        bool Is(string prefix) => category.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+
+        if (Is("Audio.Headphone") || Is("Audio.Headset")) return DeviceKind.Headset;
+        if (Is("Audio.Speaker") || Is("Audio.Receiver")) return DeviceKind.Speaker;
+        if (Is("Input.Gaming")) return DeviceKind.Controller;
+        if (Is("Input.Keyboard")) return DeviceKind.Keyboard;
+        if (Is("Input.Mouse")) return DeviceKind.Mouse;
+        if (Is("Input.Digitizer")) return DeviceKind.Stylus;
+        if (Is("Communication.Phone")) return DeviceKind.Phone;
+        if (Is("Computer.Tablet")) return DeviceKind.Tablet;
+        if (Is("Computer.")) return DeviceKind.Laptop;
+        return DeviceKind.Unknown;
     }
 
     /// <summary>Bluetooth SIG "Appearance" values: category in bits 15..6, sub-category in bits 5..0.</summary>

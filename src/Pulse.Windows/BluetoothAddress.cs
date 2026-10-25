@@ -37,10 +37,16 @@ internal static class BluetoothAddress
         return new string(buffer);
     }
 
+    /// <summary><see cref="TryExtractFromInstanceId"/> priority of a device node ("BTHENUM\Dev_..." / "BTHLE\Dev_...").</summary>
+    public const int DeviceNodePriority = 2;
+
+    /// <summary><see cref="TryExtractFromInstanceId"/> priority of a service node ("BTHENUM\{uuid}_LOCALMFG&amp;...").</summary>
+    public const int ServiceNodePriority = 1;
+
     /// <summary>
     /// Extracts the address from a BTHENUM / BTHLE PnP instance id. Device nodes ("BTHLE\Dev_686CE645E1AD\...") get
-    /// priority 2, service children ("BTHENUM\{uuid}_LOCALMFG&amp;0002\7&amp;...&amp;FC039F42E11F_C00000000") priority 1.
-    /// BTHLEDevice\ GATT service nodes and the BTH\ bus nodes are rejected.
+    /// <see cref="DeviceNodePriority"/>, service children ("BTHENUM\{uuid}_LOCALMFG&amp;0002\7&amp;...&amp;FC039F42E11F_C00000000")
+    /// <see cref="ServiceNodePriority"/>. BTHLEDevice\ GATT service nodes and the BTH\ bus nodes are rejected.
     /// </summary>
     public static bool TryExtractFromInstanceId(string? instanceId, out string hex12, out int priority)
     {
@@ -56,7 +62,7 @@ internal static class BluetoothAddress
         var dev = instanceId.IndexOf(@"\DEV_", StringComparison.OrdinalIgnoreCase);
         if (dev >= 0 && dev + 5 + 12 <= instanceId.Length && TryNormalize(instanceId.AsSpan(dev + 5, 12).ToString(), out hex12))
         {
-            priority = 2;
+            priority = DeviceNodePriority;
             return true;
         }
 
@@ -65,7 +71,7 @@ internal static class BluetoothAddress
         {
             if (token.Length == 12 && TryNormalize(token, out hex12))
             {
-                priority = 1;
+                priority = ServiceNodePriority;
                 return true;
             }
         }

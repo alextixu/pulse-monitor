@@ -1,7 +1,7 @@
 using System.Text;
 using Microsoft.Extensions.Logging;
 
-namespace Pulse.App.Services;
+namespace Pulse.Engine;
 
 /// <summary>
 /// Minimal thread-safe file logger: one line per entry, exception on the following lines,

@@ -1,6 +1,6 @@
 using Pulse.Core.Models;
 
-namespace Pulse.App.Localization;
+namespace Pulse.Core.Localization;
 
 /// <summary>
 /// Every user-facing string (Traditional Chinese). Views bind to these via <c>{x:Static loc:Strings.Xxx}</c>;

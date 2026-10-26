@@ -4,7 +4,7 @@ using Pulse.Core.Abstractions;
 using Pulse.Core.Models;
 using Microsoft.Extensions.Logging;
 
-namespace Pulse.App.Services;
+namespace Pulse.Engine;
 
 /// <summary>
 /// Persists <see cref="AppSettings"/> as indented JSON in %APPDATA%\Pulse\settings.json.
@@ -89,22 +89,7 @@ public sealed class JsonSettingsStore : ISettingsStore
         }
     }
 
-    private static void Sanitize(AppSettings s)
-    {
-        s.HardwareRefreshSeconds = Math.Clamp(s.HardwareRefreshSeconds, 1, 3600);
-        s.BatteryRefreshSeconds = Math.Clamp(s.BatteryRefreshSeconds, 5, 86400);
-        s.OpenRgbPort = Math.Clamp(s.OpenRgbPort, 1, 65535);
-        s.LowBatteryThresholdPercent = Math.Clamp(s.LowBatteryThresholdPercent, 1, 99);
-        s.OpenRgbHost = string.IsNullOrWhiteSpace(s.OpenRgbHost) ? "127.0.0.1" : s.OpenRgbHost.Trim();
-        s.HiddenDeviceIds ??= new List<string>();
-        if (!Enum.IsDefined(s.FanMode)) s.FanMode = FanMode.Individual;
-        s.SyncedFanPercent = double.IsFinite(s.SyncedFanPercent) ? Math.Clamp(s.SyncedFanPercent, 0, 100) : 50;
-        s.FanGroupExcludedIds = CleanIds(s.FanGroupExcludedIds);
-        s.FanGroupIncludedIds = CleanIds(s.FanGroupIncludedIds);
-    }
-
-    private static List<string> CleanIds(List<string>? ids)
-        => ids is null ? new List<string>() : ids.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToList();
+    private static void Sanitize(AppSettings s) => s.Sanitize();
 
     private void TryBackupCorruptFile()
     {

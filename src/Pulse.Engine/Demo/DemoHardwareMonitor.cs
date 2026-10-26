@@ -2,7 +2,7 @@ using Pulse.Core.Abstractions;
 using Pulse.Core.Models;
 using Microsoft.Extensions.Logging;
 
-namespace Pulse.App.Demo;
+namespace Pulse.Engine.Demo;
 
 /// <summary>
 /// "--demo": i7-12700K + RTX 3080 Ti style telemetry with gently changing values. Fans exercise every fan-mode path:

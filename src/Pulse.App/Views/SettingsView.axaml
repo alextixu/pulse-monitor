@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Pulse.App.ViewModels"
-             xmlns:loc="using:Pulse.App.Localization"
+             xmlns:loc="using:Pulse.Core.Localization"
              xmlns:conv="using:Pulse.App.Converters"
              x:Class="Pulse.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">

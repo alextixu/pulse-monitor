@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Description>Headless Pulse engine: polling, fan modes, telemetry, memory (state.json), RGB orchestration and the agent pipe server. No UI framework.</Description>
+    <!-- Skeleton members are filled in incrementally. -->
+    <NoWarn>$(NoWarn);CS0067</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Sources being ported from the old single-process app (Avalonia-coupled); removed once ported. -->
+    <Compile Remove="_port\**" />
+    <None Include="_port\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pulse.Core\Pulse.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.20" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.20" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Pulse.Core.Tests" />
+  </ItemGroup>
+
+</Project>

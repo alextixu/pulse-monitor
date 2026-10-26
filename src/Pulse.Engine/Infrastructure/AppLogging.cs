@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 
-namespace Pulse.App.Services;
+namespace Pulse.Engine;
 
-/// <summary>Shared logging configuration: file sink (+ Debug sink), Information level, Debug for our own namespaces in DEBUG builds.</summary>
+/// <summary>Shared logging configuration: file sink, Information level, Debug for our own namespaces in DEBUG builds.</summary>
 public static class AppLogging
 {
     public static void Configure(ILoggingBuilder builder, FileLoggerProvider fileProvider)
@@ -15,6 +15,8 @@ public static class AppLogging
         builder.AddFilter("Microsoft", LogLevel.Warning);
         builder.AddFilter("System", LogLevel.Warning);
         builder.AddProvider(fileProvider);
-        builder.AddDebug();
     }
+
+    /// <summary>A logger factory writing to <paramref name="fileProvider"/> only.</summary>
+    public static ILoggerFactory CreateFactory(FileLoggerProvider fileProvider) => LoggerFactory.Create(b => Configure(b, fileProvider));
 }

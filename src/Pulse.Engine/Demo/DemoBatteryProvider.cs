@@ -2,7 +2,7 @@ using Pulse.Core.Abstractions;
 using Pulse.Core.Models;
 using Microsoft.Extensions.Logging;
 
-namespace Pulse.App.Demo;
+namespace Pulse.Engine.Demo;
 
 /// <summary>"--demo": eight devices covering every visual state (charging, full, low, critical, disconnected, sleeping, unknown level).</summary>
 public sealed class DemoBatteryProvider : IBatteryProvider

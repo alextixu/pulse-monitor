@@ -67,8 +67,39 @@ public sealed class AppSettings
     /// <summary>Fan ids explicitly opted into the group; overrides the pump heuristic.</summary>
     public List<string> FanGroupIncludedIds { get; set; } = new();
 
-    /// <summary>Write a per-second hardware CSV (temperatures, loads, power, fans); cleared every hour. Forces a 1 s hardware poll.</summary>
+    /// <summary>Write a hardware CSV row every poll (temperatures, loads, power, fans); cleared every hour.</summary>
     public bool TelemetryEnabled { get; set; } = true;
 
-    public AppSettings Clone() => (AppSettings)MemberwiseClone();
+    /// <summary>Re-apply the remembered lighting of every RGB device once after Pulse starts.</summary>
+    public bool RestoreLightingOnStartup { get; set; } = true;
+
+    /// <summary>Deep copy (the id lists are copied too, so the copy can be edited on another thread).</summary>
+    public AppSettings Clone()
+    {
+        var copy = (AppSettings)MemberwiseClone();
+        copy.HiddenDeviceIds = new List<string>(HiddenDeviceIds ?? new List<string>());
+        copy.FanGroupExcludedIds = new List<string>(FanGroupExcludedIds ?? new List<string>());
+        copy.FanGroupIncludedIds = new List<string>(FanGroupIncludedIds ?? new List<string>());
+        return copy;
+    }
+
+    /// <summary>Clamps every value into its valid range and repairs missing lists (after loading and before saving).</summary>
+    public void Sanitize()
+    {
+        HardwareRefreshSeconds = Math.Clamp(HardwareRefreshSeconds, 1, 3600);
+        BatteryRefreshSeconds = Math.Clamp(BatteryRefreshSeconds, 5, 86400);
+        OpenRgbPort = Math.Clamp(OpenRgbPort, 1, 65535);
+        LowBatteryThresholdPercent = Math.Clamp(LowBatteryThresholdPercent, 1, 99);
+        OpenRgbHost = string.IsNullOrWhiteSpace(OpenRgbHost) ? "127.0.0.1" : OpenRgbHost.Trim();
+        if (!Enum.IsDefined(Theme)) Theme = AppTheme.System;
+        if (!Enum.IsDefined(TrayIconMode)) TrayIconMode = TrayIconMode.LowestBattery;
+        if (!Enum.IsDefined(FanMode)) FanMode = FanMode.Individual;
+        SyncedFanPercent = double.IsFinite(SyncedFanPercent) ? Math.Clamp(SyncedFanPercent, 0, 100) : 50;
+        HiddenDeviceIds = CleanIds(HiddenDeviceIds);
+        FanGroupExcludedIds = CleanIds(FanGroupExcludedIds);
+        FanGroupIncludedIds = CleanIds(FanGroupIncludedIds);
+    }
+
+    private static List<string> CleanIds(List<string>? ids)
+        => ids is null ? new List<string>() : ids.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).ToList();
 }

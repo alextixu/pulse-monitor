@@ -2,7 +2,7 @@ using Pulse.Core.Abstractions;
 using Pulse.Core.Models;
 using Microsoft.Extensions.Logging;
 
-namespace Pulse.App.Demo;
+namespace Pulse.Engine.Demo;
 
 /// <summary>
 /// "--demo": in-memory OpenRGB stand-in with three devices (motherboard, mouse, DRAM) that remember colours / modes.

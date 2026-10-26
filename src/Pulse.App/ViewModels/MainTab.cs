@@ -1,4 +1,4 @@
-using Pulse.App.Localization;
+using Pulse.Core.Localization;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Pulse.App.ViewModels;

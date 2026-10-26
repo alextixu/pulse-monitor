@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Avalonia.Threading;
 using Pulse.App.Controls;
-using Pulse.App.Localization;
+using Pulse.Core.Localization;
 using Pulse.App.Services;
 using Pulse.Core.Abstractions;
 using Pulse.Core.FanControl;

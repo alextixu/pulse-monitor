@@ -1,33 +1,10 @@
 using Avalonia.Controls;
 using Pulse.Core.Models;
+using Pulse.Core.Tray;
 using Microsoft.Extensions.Logging;
 using SkiaSharp;
 
 namespace Pulse.App.Services;
-
-/// <summary>Colour family of the tray glyph.</summary>
-public enum TrayTone
-{
-    Neutral,
-    Good,
-    Warning,
-    Danger,
-    Charging,
-}
-
-public enum TrayGlyphStyle
-{
-    /// <summary>Progress ring with a centred number.</summary>
-    Ring,
-    /// <summary>Static battery glyph with a bolt (IconOnly mode / no data).</summary>
-    Battery,
-}
-
-/// <summary>What the tray icon shows; value-compared so unchanged content is not re-rendered.</summary>
-public sealed record TrayIconContent(TrayGlyphStyle Style, string? Text, double? Fraction, TrayTone Tone)
-{
-    public static TrayIconContent Static { get; } = new(TrayGlyphStyle.Battery, null, null, TrayTone.Neutral);
-}
 
 /// <summary>
 /// Renders the dynamic tray icon with SkiaSharp (no window needed, any thread) and wraps it as a <see cref="WindowIcon"/>.

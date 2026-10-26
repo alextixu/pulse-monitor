@@ -103,6 +103,20 @@ public sealed class FanPresenceTracker
         }
     }
 
+    /// <summary>
+    /// Restores what an earlier process saw during the same boot, so pump and hidden-header decisions survive an agent
+    /// restart. A seeded fan still goes through the grace period unless it is known to have spun.
+    /// </summary>
+    public void Seed(string fanId, FanFirstSight first, bool everSpun)
+    {
+        if (_fans.ContainsKey(fanId)) return;
+        _fans[fanId] = new Entry { First = first, EverSpun = everSpun };
+    }
+
+    /// <summary>Everything observed so far, for persisting (see <see cref="Seed"/>).</summary>
+    public IReadOnlyList<(string FanId, FanFirstSight First, bool EverSpun)> Export()
+        => _fans.Select(kv => (kv.Key, kv.Value.First, kv.Value.EverSpun)).ToList();
+
     public FanFirstSight? FirstSight(string fanId) => _fans.TryGetValue(fanId, out var e) ? e.First : null;
 
     /// <summary>Visible once it reported RPM &gt; 0 (sticky for the session) or when it is a GPU fan (zero-RPM idle is normal there).</summary>

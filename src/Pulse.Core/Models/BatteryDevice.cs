@@ -74,4 +74,7 @@ public sealed record BatteryDevice
     public string? Detail { get; init; }
 
     public DateTimeOffset UpdatedAt { get; init; } = DateTimeOffset.Now;
+
+    /// <summary>When the device was last seen connected (Bluetooth reports it even while disconnected); null when unknown.</summary>
+    public DateTimeOffset? LastConnectedAt { get; init; }
 }

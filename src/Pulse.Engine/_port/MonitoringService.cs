@@ -1,49 +1,12 @@
 using Avalonia.Threading;
 using Pulse.Core.Abstractions;
 using Pulse.Core.Models;
+using Pulse.Core.Tray;
 using Pulse.Rgb;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 
 namespace Pulse.App.Services;
-
-/// <summary>The device with the lowest battery among the connected, visible ones.</summary>
-public sealed record BatterySummary(string DeviceId, string Name, int Percent, bool IsCharging, DeviceKind Kind);
-
-/// <summary>Everything the tray icon / tooltip needs, recomputed after every poll.</summary>
-public sealed record TraySummary
-{
-    public IReadOnlyList<BatteryDevice> ConnectedDevices { get; init; } = Array.Empty<BatteryDevice>();
-    public BatterySummary? Lowest { get; init; }
-    public double? CpuLoadPercent { get; init; }
-    public double? CpuTempC { get; init; }
-    public double? GpuLoadPercent { get; init; }
-    public double? GpuTempC { get; init; }
-
-    public static TraySummary Empty { get; } = new();
-
-    /// <summary>Value equality at tooltip precision (whole percents / degrees, device id + level + status).</summary>
-    public bool Equals(TraySummary? other)
-    {
-        if (other is null) return false;
-        if (ReferenceEquals(this, other)) return true;
-        if (Lowest != other.Lowest) return false;
-        if (Round(CpuLoadPercent) != Round(other.CpuLoadPercent) || Round(CpuTempC) != Round(other.CpuTempC)) return false;
-        if (Round(GpuLoadPercent) != Round(other.GpuLoadPercent) || Round(GpuTempC) != Round(other.GpuTempC)) return false;
-        if (ConnectedDevices.Count != other.ConnectedDevices.Count) return false;
-        for (var i = 0; i < ConnectedDevices.Count; i++)
-        {
-            var a = ConnectedDevices[i];
-            var b = other.ConnectedDevices[i];
-            if (a.Id != b.Id || a.Name != b.Name || a.Percent != b.Percent || a.Status != b.Status) return false;
-        }
-        return true;
-    }
-
-    public override int GetHashCode() => HashCode.Combine(Lowest, Round(CpuLoadPercent), Round(CpuTempC), Round(GpuLoadPercent), Round(GpuTempC), ConnectedDevices.Count);
-
-    private static int? Round(double? value) => value is { } v ? (int)Math.Round(v) : null;
-}
 
 /// <summary>
 /// Singleton orchestrator: polls the battery providers and the hardware monitor on background timers,
@@ -175,7 +138,7 @@ public sealed partial class MonitoringService : ObservableObject, IDisposable
             if (_openRgbLauncher is not null && _settings.UseBundledOpenRgb)
             {
                 var launch = await _openRgbLauncher.EnsureRunningAsync(_settings.OpenRgbHost, _settings.OpenRgbPort, cancellationToken).ConfigureAwait(false);
-                launched = launch == OpenRgbLaunchResult.Started;
+                launched = launch == RgbLaunchResult.Started;
                 _log.LogInformation("Bundled OpenRGB: {Result} (bundled copy present: {Bundled})", launch, OpenRgbServerLauncher.IsBundled);
             }
 

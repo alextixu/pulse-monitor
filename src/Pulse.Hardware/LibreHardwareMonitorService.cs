@@ -108,33 +108,35 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
     public Task<HardwareSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default)
     {
         if (!IsRunning) return Task.FromResult(HardwareSnapshot.Empty);
+        return Task.Run(() => GetSnapshot(cancellationToken), cancellationToken);
+    }
 
-        return Task.Run(() =>
+    public HardwareSnapshot GetSnapshot(CancellationToken cancellationToken = default)
+    {
+        if (!IsRunning) return HardwareSnapshot.Empty;
+        lock (_lhmLock)
         {
-            lock (_lhmLock)
-            {
-                if (_computer is not { } computer || _updateVisitor is not { } visitor) return HardwareSnapshot.Empty;
-                cancellationToken.ThrowIfCancellationRequested();
+            if (_computer is not { } computer || _updateVisitor is not { } visitor) return HardwareSnapshot.Empty;
+            cancellationToken.ThrowIfCancellationRequested();
 
-                try
-                {
-                    var started = System.Diagnostics.Stopwatch.GetTimestamp();
-                    computer.Accept(visitor);
-                    var accepted = System.Diagnostics.Stopwatch.GetTimestamp();
-                    var result = SnapshotBuilder.Build(computer.Hardware, _manualFans, _controlAllowed, _disks);
-                    _stats.Add(accepted - started, System.Diagnostics.Stopwatch.GetTimestamp() - accepted);
-                    if (_stats.IsDue(Environment.TickCount64)) LogStatsLocked(visitor);
-                    _fanBindings = result.FanBindings;
-                    _lastSnapshot = result.Snapshot;
-                    return result.Snapshot;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Hardware snapshot failed; returning the previous snapshot");
-                    return _lastSnapshot ?? HardwareSnapshot.Empty;
-                }
+            try
+            {
+                var started = System.Diagnostics.Stopwatch.GetTimestamp();
+                computer.Accept(visitor);
+                var accepted = System.Diagnostics.Stopwatch.GetTimestamp();
+                var result = SnapshotBuilder.Build(computer.Hardware, _manualFans, _controlAllowed, _disks);
+                _stats.Add(accepted - started, System.Diagnostics.Stopwatch.GetTimestamp() - accepted);
+                if (_stats.IsDue(Environment.TickCount64)) LogStatsLocked(visitor);
+                _fanBindings = result.FanBindings;
+                _lastSnapshot = result.Snapshot;
+                return result.Snapshot;
             }
-        }, cancellationToken);
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Hardware snapshot failed; returning the previous snapshot");
+                return _lastSnapshot ?? HardwareSnapshot.Empty;
+            }
+        }
     }
 
     public Task SetFanAsync(string fanId, double? percent, CancellationToken cancellationToken = default)

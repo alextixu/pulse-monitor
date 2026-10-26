@@ -1,6 +1,6 @@
 using System.Globalization;
 using Avalonia.Data.Converters;
-using Pulse.App.Localization;
+using Pulse.Core.Localization;
 
 namespace Pulse.App.Converters;
 

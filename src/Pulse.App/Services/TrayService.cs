@@ -2,9 +2,10 @@ using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
-using Pulse.App.Localization;
+using Pulse.Core.Localization;
 using Pulse.App.ViewModels;
 using Pulse.Core.Models;
+using Pulse.Core.Tray;
 using Microsoft.Extensions.Logging;
 
 namespace Pulse.App.Services;

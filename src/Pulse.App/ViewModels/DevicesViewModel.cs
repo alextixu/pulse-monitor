@@ -3,7 +3,7 @@ using System.ComponentModel;
 using Avalonia.Media;
 using Pulse.App.Controls;
 using Pulse.App.Converters;
-using Pulse.App.Localization;
+using Pulse.Core.Localization;
 using Pulse.App.Services;
 using Pulse.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;

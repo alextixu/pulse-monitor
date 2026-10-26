@@ -1,9 +1,9 @@
-using Pulse.App.Services;
+using Pulse.Engine;
 using Pulse.Core.Abstractions;
 using Pulse.Core.Models;
 using Microsoft.Extensions.Logging;
 
-namespace Pulse.App.Demo;
+namespace Pulse.Engine.Demo;
 
 /// <summary>"--demo": pretends elevation is possible but never relaunches, so the admin banner / menu item are visible.</summary>
 public sealed class DemoElevationService : IElevationService

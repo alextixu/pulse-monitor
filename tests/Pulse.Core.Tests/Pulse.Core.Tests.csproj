@@ -20,6 +20,7 @@
     <ProjectReference Include="..\..\src\Pulse.Core\Pulse.Core.csproj" />
     <ProjectReference Include="..\..\src\Pulse.Rgb\Pulse.Rgb.csproj" />
     <ProjectReference Include="..\..\src\Pulse.Hardware\Pulse.Hardware.csproj" />
+    <ProjectReference Include="..\..\src\Pulse.Logitech\Pulse.Logitech.csproj" />
   </ItemGroup>
 
 </Project>

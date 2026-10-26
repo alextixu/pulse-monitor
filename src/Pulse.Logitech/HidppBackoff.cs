@@ -2,9 +2,10 @@ namespace Pulse.Logitech;
 
 /// <summary>
 /// Retry schedule for one HID++ interface whose handle could not be opened or whose transport faulted (write or read
-/// failure): the next attempt is allowed after 30 s, then 1 min, 2 min, 5 min, and every 15 min after that, until a
-/// poll succeeds and <see cref="Reset"/> is called. Pure bookkeeping without a clock so the schedule can be unit tested;
-/// callers pass "now".
+/// failure): the next attempt is allowed after 30 s, then 1 min, and every 2 min after that, until a poll succeeds and
+/// <see cref="Reset"/> is called. The cap is short so a mouse that wakes up (or G HUB letting go of the receiver) shows
+/// its level again within two minutes; <see cref="RetrySoon"/> makes the next poll try at once (USB device change).
+/// Pure bookkeeping without a clock so the schedule can be unit tested; callers pass "now".
 /// </summary>
 internal sealed class HidppBackoff
 {
@@ -12,11 +13,9 @@ internal sealed class HidppBackoff
     {
         TimeSpan.FromSeconds(30),
         TimeSpan.FromMinutes(1),
-        TimeSpan.FromMinutes(2),
-        TimeSpan.FromMinutes(5),
     };
 
-    public static readonly TimeSpan MaxDelay = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan MaxDelay = TimeSpan.FromMinutes(2);
 
     /// <summary>Consecutive failed attempts since the last successful poll.</summary>
     public int Failures { get; private set; }
@@ -37,6 +36,12 @@ internal sealed class HidppBackoff
         Failures++;
         RetryAt = now + delay;
         return delay;
+    }
+
+    /// <summary>Allows the next attempt immediately without forgetting the failure count (e.g. after a USB device change).</summary>
+    public void RetrySoon()
+    {
+        if (Failures > 0) RetryAt = null;
     }
 
     /// <summary>Clears the schedule after a successful poll.</summary>

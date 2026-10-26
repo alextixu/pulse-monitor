@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
+    <!-- DiskMediaTypes queries storage descriptors with DeviceIoControl. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Description>CPU / GPU / motherboard telemetry and fan control via LibreHardwareMonitorLib.</Description>
   </PropertyGroup>
 

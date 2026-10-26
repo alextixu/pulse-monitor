@@ -54,6 +54,7 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
     private Computer? _computer;                                     // guarded by _lhmLock
     private UpdateVisitor? _updateVisitor;                           // guarded by _lhmLock
     private IReadOnlyList<DiskMetadata> _disks = Array.Empty<DiskMetadata>(); // set once with the visitor
+    private PollStats _stats = new(Environment.TickCount64);                  // guarded by _lhmLock
     private Dictionary<string, FanBinding> _fanBindings = new();     // guarded by _lhmLock
     private HardwareSnapshot? _lastSnapshot;                         // guarded by _lhmLock
     private Task? _initTask;                                         // guarded by _initLock
@@ -117,8 +118,12 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
 
                 try
                 {
+                    var started = System.Diagnostics.Stopwatch.GetTimestamp();
                     computer.Accept(visitor);
+                    var accepted = System.Diagnostics.Stopwatch.GetTimestamp();
                     var result = SnapshotBuilder.Build(computer.Hardware, _manualFans, _controlAllowed, _disks);
+                    _stats.Add(accepted - started, System.Diagnostics.Stopwatch.GetTimestamp() - accepted);
+                    if (_stats.IsDue(Environment.TickCount64)) LogStatsLocked(visitor);
                     _fanBindings = result.FanBindings;
                     _lastSnapshot = result.Snapshot;
                     return result.Snapshot;
@@ -183,7 +188,7 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
                     control.SetSoftware((float)value);
                     _manualFans[fanId] = value;
                     _touchedControls[fanId] = control;
-                    _logger.LogInformation("Fan {FanId} set to {Percent}% (requested {Requested}%)", fanId, value, percent.Value);
+                    _logger.LogDebug("Fan {FanId} set to {Percent:0.#}% (requested {Requested:0.#}%)", fanId, value, percent.Value);
                 }
 
                 WriteJournalLocked();
@@ -370,9 +375,12 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
             _computer = computer;
             if (_updateVisitor is null)
             {
-                _disks = DiskMediaTypes.Read(_logger);
-                var disks = _disks;
-                _updateVisitor = new UpdateVisitor(_logger, drive => DiskMediaTypes.Find(drive.Name, disks)?.IsHardDisk == true);
+                // Read before the first Accept so the visitor already knows which drives must never be queried.
+                var disks = DiskMediaTypes.Read(_logger);
+                _disks = disks ?? Array.Empty<DiskMetadata>();
+                _updateVisitor = disks is null
+                    ? new UpdateVisitor(_logger, _ => true)
+                    : new UpdateVisitor(_logger, drive => DiskMediaTypes.Find(drive.Name, disks)?.IsHardDisk == true);
             }
             computer.Open();
 
@@ -394,6 +402,10 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
 
                 recoveryNotice = RecoverFromPreviousSessionLocked();
                 orphanedIds = _orphaned.ToList();
+                using (var process = System.Diagnostics.Process.GetCurrentProcess())
+                {
+                    _stats = new PollStats(Environment.TickCount64) { CpuAtStart = process.TotalProcessorTime };
+                }
             }
         }
 
@@ -446,6 +458,59 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
         _logger.LogInformation("Fans ({Count}, control allowed: {Allowed}): {Fans}", fans.Count, _controlAllowed, list);
 
         static string Fmt(double? v) => v is { } x ? Math.Round(x).ToString("0", System.Globalization.CultureInfo.InvariantCulture) : "n/a";
+    }
+
+    /// <summary>
+    /// One Information line every <see cref="PollStats.Interval"/>: poll cost (LHM update + snapshot build), the slowest
+    /// hardware nodes, and the process' CPU, memory, thread and handle use over the window. Caller holds <see cref="_lhmLock"/>.
+    /// </summary>
+    private void LogStatsLocked(UpdateVisitor visitor)
+    {
+        var stats = _stats;
+        var now = Environment.TickCount64;
+        _stats = new PollStats(now);
+        try
+        {
+            using var process = System.Diagnostics.Process.GetCurrentProcess();
+            var cpu = process.TotalProcessorTime;
+            var wallMs = Math.Max(1, now - stats.StartedAt);
+            var cpuPercent = stats.CpuAtStart is { } start ? (cpu - start).TotalMilliseconds / wallMs * 100 : double.NaN;
+            _stats.CpuAtStart = cpu;
+            var nodes = string.Join(", ", visitor.TakeTimings().Take(6).Select(t => $"{t.Node} {t.AverageMs:0.0}/{t.MaxMs:0} ms ×{t.Count}"));
+            _logger.LogInformation(
+                "Poll stats ({Polls} polls in {Minutes:0.0} min): update avg {Accept:0.0} ms max {AcceptMax:0} ms, build avg {Build:0.00} ms | process CPU {Cpu:0.00}% of one core, WS {Ws} MB, private {Private} MB, GC heap {Heap} MB, threads {Threads}, handles {Handles} | slowest nodes: {Nodes}",
+                stats.Count, wallMs / 60000.0, stats.AcceptAverageMs, stats.AcceptMaxMs, stats.BuildAverageMs, cpuPercent,
+                process.WorkingSet64 / (1024 * 1024), process.PrivateMemorySize64 / (1024 * 1024),
+                GC.GetGCMemoryInfo().HeapSizeBytes / (1024 * 1024), process.Threads.Count, process.HandleCount, nodes);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Poll stats failed");
+        }
+    }
+
+    /// <summary>Accumulates poll timings for <see cref="LogStatsLocked"/>.</summary>
+    private sealed class PollStats(long startedAt)
+    {
+        public const long Interval = 5 * 60 * 1000;
+        public long StartedAt { get; } = startedAt;
+        public TimeSpan? CpuAtStart { get; set; }
+        public int Count { get; private set; }
+        private long _accept, _acceptMax, _build;
+
+        public void Add(long acceptTicks, long buildTicks)
+        {
+            Count++;
+            _accept += acceptTicks;
+            _build += buildTicks;
+            if (acceptTicks > _acceptMax) _acceptMax = acceptTicks;
+        }
+
+        public bool IsDue(long now) => now - StartedAt >= Interval;
+        public double AcceptAverageMs => Count == 0 ? 0 : Ms(_accept) / Count;
+        public double AcceptMaxMs => Ms(_acceptMax);
+        public double BuildAverageMs => Count == 0 ? 0 : Ms(_build) / Count;
+        private static double Ms(long ticks) => ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
     }
 
     /// <summary>Caller holds <see cref="_lhmLock"/>.</summary>

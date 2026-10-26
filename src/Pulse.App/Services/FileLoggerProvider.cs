@@ -6,6 +6,7 @@ namespace Pulse.App.Services;
 /// <summary>
 /// Minimal thread-safe file logger: one line per entry, exception on the following lines,
 /// size-based roll (app.log → app.1.log) when the file exceeds <see cref="MaxBytes"/>.
+/// The file stays open between lines (shared for reading, so it can be tailed live) and every line is flushed.
 /// </summary>
 public sealed class FileLoggerProvider : ILoggerProvider
 {
@@ -14,6 +15,8 @@ public sealed class FileLoggerProvider : ILoggerProvider
     private readonly object _gate = new();
     private readonly string _path;
     private readonly string _rolledPath;
+    private FileStream? _stream;
+    private StreamWriter? _writer;
     private bool _disposed;
 
     public FileLoggerProvider(string path)
@@ -43,24 +46,33 @@ public sealed class FileLoggerProvider : ILoggerProvider
         if (_disposed) return;
         lock (_gate)
         {
+            if (_disposed) return;
             try
             {
-                RollIfNeeded();
-                using var stream = new FileStream(_path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
-                using var writer = new StreamWriter(stream, new UTF8Encoding(false));
-                writer.Write(line);
+                if (_writer is null || _stream is null) Open();
+                else if (_stream.Length >= MaxBytes) Roll();
+                _writer!.Write(line);
+                _writer.Flush();
             }
             catch
             {
-                // Swallow: a failing log sink must not crash the app.
+                // Swallow: a failing log sink must not crash the app. Reopen on the next line.
+                CloseLocked();
             }
         }
     }
 
-    private void RollIfNeeded()
+    private void Open()
     {
-        var info = new FileInfo(_path);
-        if (!info.Exists || info.Length < MaxBytes) return;
+        // Another process (an older Pulse, or the other Pulse executable) may also append: share writes and deletes.
+        _stream = new FileStream(_path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+        _writer = new StreamWriter(_stream, new UTF8Encoding(false));
+        if (_stream.Length >= MaxBytes) Roll();
+    }
+
+    private void Roll()
+    {
+        CloseLocked();
         try
         {
             if (File.Exists(_rolledPath)) File.Delete(_rolledPath);
@@ -68,11 +80,28 @@ public sealed class FileLoggerProvider : ILoggerProvider
         }
         catch
         {
-            // Keep appending to the current file if rolling fails (e.g. locked).
+            // Keep appending to the current file if rolling fails (e.g. locked by another process).
         }
+        _stream = new FileStream(_path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+        _writer = new StreamWriter(_stream, new UTF8Encoding(false));
     }
 
-    public void Dispose() => _disposed = true;
+    private void CloseLocked()
+    {
+        try { _writer?.Dispose(); } catch { /* ignore */ }
+        try { _stream?.Dispose(); } catch { /* ignore */ }
+        _writer = null;
+        _stream = null;
+    }
+
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            _disposed = true;
+            CloseLocked();
+        }
+    }
 
     private sealed class FileLogger : ILogger
     {

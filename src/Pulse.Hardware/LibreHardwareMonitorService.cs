@@ -13,8 +13,11 @@ namespace Pulse.Hardware;
 /// <see cref="IHardwareMonitor"/> backed by LibreHardwareMonitorLib. Every call into the library is serialised
 /// through one lock and runs on the thread pool; the status record is swapped atomically.
 /// </summary>
-public sealed class LibreHardwareMonitorService : IHardwareMonitor
+public sealed class LibreHardwareMonitorService : IHardwareMonitor, IDeviceChangeAware
 {
+    /// <summary>How long GPU reads pause after a device change (a display driver reinstall takes a few seconds).</summary>
+    private static readonly TimeSpan GpuPauseAfterDeviceChange = TimeSpan.FromSeconds(15);
+
     private const string NotElevatedMessage = "未以系統管理員身分執行，無法讀取 CPU 溫度與控制風扇。";
     private const string DriverMissingMessage = "核心驅動程式未載入：請安裝 PawnIO（https://pawnio.eu），或檢查記憶體完整性設定。";
     private const string NoControllableFanMessage = "未偵測到可控制的風扇（主機板感測晶片可能不受支援）。";
@@ -78,6 +81,9 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
     }
 
     public HardwareMonitorStatus Status => _status;
+
+    /// <summary>Windows reported a device change: pause GPU reads in case the display driver is being replaced.</summary>
+    public void OnDevicesChanged() => _updateVisitor?.PauseGpus(GpuPauseAfterDeviceChange);
 
     public event EventHandler<HardwareMonitorStatus>? StatusChanged;
 

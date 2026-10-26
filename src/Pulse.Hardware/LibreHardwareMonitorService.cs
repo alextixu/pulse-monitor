@@ -478,7 +478,7 @@ public sealed class LibreHardwareMonitorService : IHardwareMonitor
             var wallMs = Math.Max(1, now - stats.StartedAt);
             var cpuPercent = stats.CpuAtStart is { } start ? (cpu - start).TotalMilliseconds / wallMs * 100 : double.NaN;
             _stats.CpuAtStart = cpu;
-            var nodes = string.Join(", ", visitor.TakeTimings().Take(6).Select(t => $"{t.Node} {t.AverageMs:0.0}/{t.MaxMs:0} ms ×{t.Count}"));
+            var nodes = string.Join(", ", visitor.TakeTimings().Take(6).Select(t => $"{t.Node} {t.AverageMs:0.0}/{t.MaxMs:0} ms (CPU {t.CpuAverageMs:0.0}) ×{t.Count}"));
             _logger.LogInformation(
                 "Poll stats ({Polls} polls in {Minutes:0.0} min): update avg {Accept:0.0} ms max {AcceptMax:0} ms, build avg {Build:0.00} ms | process CPU {Cpu:0.00}% of one core, WS {Ws} MB, private {Private} MB, GC heap {Heap} MB, threads {Threads}, handles {Handles} | slowest nodes: {Nodes}",
                 stats.Count, wallMs / 60000.0, stats.AcceptAverageMs, stats.AcceptMaxMs, stats.BuildAverageMs, cpuPercent,

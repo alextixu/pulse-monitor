@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using LibreHardwareMonitor.Hardware;
 using Microsoft.Extensions.Logging;
 
@@ -12,7 +12,7 @@ namespace Pulse.Hardware;
 /// Also turns off LibreHardwareMonitor's per-sensor value history (one day by default, which grows by megabytes per hour
 /// at a 1 s poll) and times every node so the cost of a poll can be reported.
 /// </summary>
-internal sealed class UpdateVisitor : IVisitor
+internal sealed partial class UpdateVisitor : IVisitor
 {
     public static readonly TimeSpan SlowInterval = TimeSpan.FromSeconds(10);
 
@@ -35,6 +35,7 @@ internal sealed class UpdateVisitor : IVisitor
         if (!ShouldUpdate(hardware)) return;
 
         var started = Stopwatch.GetTimestamp();
+        var cpuStarted = ThreadCpu.Now();
         try
         {
             hardware.Update();
@@ -43,7 +44,7 @@ internal sealed class UpdateVisitor : IVisitor
         {
             _logger.LogDebug(ex, "Update failed for hardware {Hardware} ({Identifier})", hardware.Name, hardware.Identifier);
         }
-        Record(hardware, Stopwatch.GetTimestamp() - started);
+        Record(hardware, Stopwatch.GetTimestamp() - started, ThreadCpu.Now() - cpuStarted);
 
         foreach (var sensor in hardware.Sensors)
         {
@@ -56,11 +57,17 @@ internal sealed class UpdateVisitor : IVisitor
         }
     }
 
-    /// <summary>Per-node update time since the last call, slowest first; resets the counters.</summary>
-    public IReadOnlyList<(string Node, int Count, double AverageMs, double MaxMs)> TakeTimings()
+    /// <summary>
+    /// Per-node update time since the last call, slowest first; resets the counters. Wall time includes waiting for the
+    /// device; CPU time is what the polling thread actually spent (user + kernel), the part that costs power.
+    /// </summary>
+    public IReadOnlyList<(string Node, int Count, double AverageMs, double MaxMs, double CpuAverageMs)> TakeTimings()
     {
         var list = _timings
-            .Select(kv => (kv.Key, kv.Value.Count, kv.Value.Count == 0 ? 0 : Ms(kv.Value.Total) / kv.Value.Count, Ms(kv.Value.Max)))
+            .Select(kv => (kv.Key, kv.Value.Count,
+                kv.Value.Count == 0 ? 0 : Ms(kv.Value.Total) / kv.Value.Count,
+                Ms(kv.Value.Max),
+                kv.Value.Count == 0 ? 0 : kv.Value.CpuTotal.TotalMilliseconds / kv.Value.Count))
             .OrderByDescending(t => t.Item3)
             .ToList();
         _timings.Clear();
@@ -69,12 +76,13 @@ internal sealed class UpdateVisitor : IVisitor
         static double Ms(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
     }
 
-    private void Record(IHardware hardware, long ticks)
+    private void Record(IHardware hardware, long ticks, TimeSpan cpu)
     {
         var key = $"{hardware.Identifier} {hardware.Name}";
         if (!_timings.TryGetValue(key, out var timing)) _timings[key] = timing = new NodeTiming();
         timing.Count++;
         timing.Total += ticks;
+        timing.CpuTotal += cpu;
         if (ticks > timing.Max) timing.Max = ticks;
     }
 
@@ -91,7 +99,9 @@ internal sealed class UpdateVisitor : IVisitor
             return IsDue(hardware);
         }
 
-        return IsDimm(hardware) ? IsDue(hardware) : true;
+        // The embedded controller only supplies board temperatures (no fan control) and each read waits on the EC
+        // (~45 ms per poll on the test board), so it follows the slow cadence like DIMMs.
+        return IsDimm(hardware) || hardware.HardwareType == HardwareType.EmbeddedController ? IsDue(hardware) : true;
     }
 
     /// <summary>Memory nodes other than the generic "/ram" and "/vram" ones are DIMMs read over SMBus.</summary>
@@ -121,5 +131,25 @@ internal sealed class UpdateVisitor : IVisitor
         public int Count;
         public long Total;
         public long Max;
+        public TimeSpan CpuTotal;
+    }
+
+    /// <summary>CPU time (user + kernel) of the calling thread; zero where unsupported.</summary>
+    private static partial class ThreadCpu
+    {
+        public static TimeSpan Now()
+        {
+            if (!OperatingSystem.IsWindows()) return TimeSpan.Zero;
+            return GetThreadTimes(GetCurrentThread(), out _, out _, out var kernel, out var user)
+                ? TimeSpan.FromTicks(kernel + user)
+                : TimeSpan.Zero;
+        }
+
+        [System.Runtime.InteropServices.LibraryImport("kernel32.dll")]
+        private static partial IntPtr GetCurrentThread();
+
+        [System.Runtime.InteropServices.LibraryImport("kernel32.dll")]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        private static partial bool GetThreadTimes(IntPtr thread, out long creation, out long exit, out long kernel, out long user);
     }
 }

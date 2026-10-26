@@ -42,16 +42,30 @@ $Exe = (Resolve-Path $Exe).Path
 $user = "$env:USERDOMAIN\$env:USERNAME"
 
 $action    = New-ScheduledTaskAction -Execute $Exe -Argument '--minimized' -WorkingDirectory (Split-Path $Exe)
-$trigger   = New-ScheduledTaskTrigger -AtLogOn -User $user
+$logon     = New-ScheduledTaskTrigger -AtLogOn -User $user
+
+# Restart after a crash. "Restart if the task fails" only covers a failed launch, not a process that dies later
+# (2026-10-26: an NVIDIA driver update crashed Pulse inside NVML and nothing restarted it for six hours, with two
+# motherboard fans stuck at 35 %). Windows logs every crash as "Application Error" 1000 with the exe name in the
+# event data; that event starts the task again ten seconds later. The new Pulse then takes the stuck fans over.
+$eventClass = Get-CimClass -ClassName MSFT_TaskEventTrigger -Namespace Root/Microsoft/Windows/TaskScheduler
+$crashed = New-CimInstance -CimClass $eventClass -ClientOnly
+$crashed.Enabled = $true
+$crashed.Delay = 'PT10S'
+$exeName = Split-Path $Exe -Leaf
+$crashed.Subscription = @"
+<QueryList><Query Id="0" Path="Application"><Select Path="Application">*[System[Provider[@Name='Application Error'] and EventID=1000]] and *[EventData[Data='$exeName']]</Select></Query></QueryList>
+"@
+
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest
-# No time limit (the default stops tasks after 72 h), keep running on battery, restart if Pulse crashes,
+# No time limit (the default stops tasks after 72 h), keep running on battery, retry a failed launch,
 # never start a second copy (Pulse is single-instance anyway).
 $settings  = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
     -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew -StartWhenAvailable
 
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings `
-    -Description 'Pulse：裝置電量、CPU/GPU 監控、風扇與 RGB 控制（登入時以系統管理員身分啟動）' -Force | Out-Null
-Write-Host "已註冊排程工作「$TaskName」：登入時以系統管理員身分啟動 $Exe --minimized"
+Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger @($logon, $crashed) -Principal $principal -Settings $settings `
+    -Description 'Pulse：裝置電量、CPU/GPU 監控、風扇與 RGB 控制（登入時以系統管理員身分啟動，當機後自動重新啟動）' -Force | Out-Null
+Write-Host "已註冊排程工作「$TaskName」：登入時以系統管理員身分啟動 $Exe --minimized，當機後 10 秒自動重新啟動"
 
 if (-not $NoStart) {
     Start-ScheduledTask -TaskName $TaskName

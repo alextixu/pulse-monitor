@@ -46,6 +46,9 @@ public sealed class OpenRgbController : IRgbController
     // HasDefault can read it without the gate.
     private volatile string[] _deviceKeys = [];
 
+    // Keys whose first-seen capture was skipped because the device looked switched off (logged once each; gate held).
+    private readonly HashSet<string> _captureDeferred = new(StringComparer.Ordinal);
+
     /// <param name="logger">Logger.</param>
     /// <param name="defaultsPath">Where "restore default" snapshots are kept; null = %APPDATA%\Pulse\rgb-defaults.json.</param>
     public OpenRgbController(ILogger<OpenRgbController> logger, string? defaultsPath = null)
@@ -406,10 +409,12 @@ public sealed class OpenRgbController : IRgbController
             var fresh = await ReadBackAsync(client, device.Index, token).ConfigureAwait(false);
             var slot = device.Index;
 
-            var keys = _deviceKeys;
-            var key = slot < keys.Length ? keys[slot] : BaseKey(fresh);
+            var key = KeyOf(slot, fresh);
             var snapshot = Capture(fresh, key);
             _defaults.Set(snapshot);
+
+            // The cached list must report the new default without a re-enumeration (callers read it with refresh:false).
+            if (CachedDevice(slot) is { } cached) StoreDevice(cached with { Key = key, HasDefault = true });
             _logger.LogInformation("OpenRGB device {Device} ({Name}): current state saved as default (mode {Mode})", device.Index, device.Name, snapshot.ModeName);
             return true;
         }, ct);
@@ -418,9 +423,14 @@ public sealed class OpenRgbController : IRgbController
     {
         var keys = _deviceKeys;
         if (deviceIndex < 0 || deviceIndex >= keys.Length) return false;
+        return HasStoredDefault(keys[deviceIndex]);
+    }
+
+    private bool HasStoredDefault(string key)
+    {
         try
         {
-            return _defaults.Contains(keys[deviceIndex]);
+            return _defaults.Contains(key);
         }
         catch (Exception ex)
         {
@@ -456,24 +466,64 @@ public sealed class OpenRgbController : IRgbController
     private async Task<IReadOnlyList<RgbDevice>> RefreshDevicesCoreAsync(OpenRgbClient client, CancellationToken ct)
     {
         var raw = await RunAsync(client.GetAllControllerData, EnumerateTimeout, ct).ConfigureAwait(false);
-        var keys = ComputeKeys(raw);
+        var described = raw.Select(Describe).ToArray();
+        var keys = RgbDeviceIdentity.ComputeKeys(described);
+        var mapped = raw.Select(Map).ToArray();
         _rawDevices = raw;
-        _devices = raw.Select(Map).ToArray();
         _deviceKeys = keys;
         _logger.LogDebug("OpenRGB reported {Count} devices", raw.Length);
-        CaptureMissingDefaults(raw, keys);
+        MigrateDefaults(described, keys);
+        CaptureMissingDefaults(raw, keys, mapped);
+
+        // Identity last, so HasDefault reflects the migration and the capture above.
+        _devices = mapped.Select((d, i) => d with { Key = keys[i], HasDefault = HasStoredDefault(keys[i]) }).ToArray();
         return _devices;
     }
 
-    /// <summary>Records the state of every device seen for the first time (keyed by <see cref="ComputeKeys"/>).</summary>
-    private void CaptureMissingDefaults(Device[] raw, string[] keys)
+    /// <summary>
+    /// Moves defaults saved under an older key (HID instance segment, changed location) to the device's current key and
+    /// drops the leftovers of the same device (<see cref="RgbDeviceIdentity.PlanMigration"/>); one file write at most.
+    /// </summary>
+    private void MigrateDefaults(RgbDeviceDescriptor[] described, string[] keys)
+    {
+        try
+        {
+            var plan = RgbDeviceIdentity.PlanMigration(keys, described, _defaults.GetAll());
+            if (plan.IsEmpty) return;
+
+            _defaults.Rewrite(plan.Moves.Select(m => m.FromKey).Concat(plan.Superseded), plan.Moves.Select(m => m.Entry));
+            foreach (var m in plan.Moves)
+                _logger.LogInformation("OpenRGB default of {Name} moved to key {Key} (was {OldKey}, matched by {Match})", m.Entry.DeviceName, m.ToKey, m.FromKey, m.Match);
+            foreach (var key in plan.Superseded)
+                _logger.LogInformation("OpenRGB default {OldKey} dropped: the same device already has a default under its current key", key);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Migrating OpenRGB default snapshots failed");
+        }
+    }
+
+    /// <summary>
+    /// Records the state of every device seen for the first time (keyed by <see cref="RgbDeviceIdentity.ComputeKeys"/>),
+    /// except a device that currently looks switched off: that is rarely its own default (see
+    /// <see cref="RgbDeviceIdentity.LooksOff(RgbDevice)"/>), so it is captured on a later enumeration once it is lit.
+    /// </summary>
+    private void CaptureMissingDefaults(Device[] raw, string[] keys, RgbDevice[] mapped)
     {
         try
         {
             var missing = new List<RgbDeviceDefault>();
-            for (var i = 0; i < raw.Length && i < keys.Length; i++)
+            for (var i = 0; i < raw.Length && i < keys.Length && i < mapped.Length; i++)
             {
-                if (!_defaults.Contains(keys[i])) missing.Add(Capture(raw[i], keys[i]));
+                if (_defaults.Contains(keys[i])) continue;
+                if (RgbDeviceIdentity.LooksOff(mapped[i]))
+                {
+                    if (_captureDeferred.Add(keys[i]))
+                        _logger.LogInformation("OpenRGB device {Name} looks switched off (Off mode or all LEDs black); its first-seen default is not captured until it is lit", mapped[i].Name);
+                    continue;
+                }
+
+                missing.Add(Capture(raw[i], keys[i]));
             }
 
             if (missing.Count == 0) return;
@@ -730,8 +780,16 @@ public sealed class OpenRgbController : IRgbController
         var raw = _rawDevices.ToArray();
         raw[deviceIndex] = fresh;
         _rawDevices = raw;
-        StoreDevice(Map(fresh) with { Index = deviceIndex });
+        var key = KeyOf(deviceIndex, fresh);
+        StoreDevice(Map(fresh) with { Index = deviceIndex, Key = key, HasDefault = HasStoredDefault(key) });
         return fresh;
+    }
+
+    /// <summary>Key of the device at <paramref name="slot"/> from the last enumeration (duplicate suffix included).</summary>
+    private string KeyOf(int slot, Device device)
+    {
+        var keys = _deviceKeys;
+        return slot >= 0 && slot < keys.Length ? keys[slot] : RgbDeviceIdentity.BaseKey(Describe(device));
     }
 
     private RgbDevice? CachedDevice(int deviceIndex) => _devices?.FirstOrDefault(d => d.Index == deviceIndex);
@@ -1036,33 +1094,11 @@ public sealed class OpenRgbController : IRgbController
     // ----- default snapshots ----------------------------------------------------------------------------------
 
     /// <summary>
-    /// Stable identity of each device across sessions: Name + Location + Serial when OpenRGB reports either, else
-    /// Name + type + LED count; duplicates within one list get a "#n" suffix in enumeration order.
+    /// Identity inputs of a device: Name + Location + Serial when OpenRGB reports either, else Name + type + LED count
+    /// (rules in <see cref="RgbDeviceIdentity"/>).
     /// </summary>
-    private static string[] ComputeKeys(Device[] devices)
-    {
-        var keys = new string[devices.Length];
-        var seen = new Dictionary<string, int>(StringComparer.Ordinal);
-        for (var i = 0; i < devices.Length; i++)
-        {
-            var key = BaseKey(devices[i]);
-            var n = seen.GetValueOrDefault(key);
-            seen[key] = n + 1;
-            keys[i] = n == 0 ? key : $"{key}#{n + 1}";
-        }
-
-        return keys;
-    }
-
-    private static string BaseKey(Device device)
-    {
-        var name = device.Name?.Trim() ?? string.Empty;
-        var location = device.Location?.Trim() ?? string.Empty;
-        var serial = device.Serial?.Trim() ?? string.Empty;
-        return location.Length > 0 || serial.Length > 0
-            ? $"{name}|{location}|{serial}"
-            : $"{name}|type{(int)device.Type}|{device.Leds.Length} LEDs";
-    }
+    private static RgbDeviceDescriptor Describe(Device device)
+        => new(device.Name, device.Location, device.Serial, (int)device.Type, device.Leds.Length);
 
     private static RgbDeviceDefault Capture(Device device, string key)
     {
@@ -1071,6 +1107,7 @@ public sealed class OpenRgbController : IRgbController
         {
             Key = key,
             DeviceName = device.Name ?? string.Empty,
+            DeviceType = (int)device.Type,
             CapturedAt = DateTimeOffset.Now,
             ModeIndex = device.ActiveModeIndex,
             ModeName = mode?.Name ?? string.Empty,

@@ -12,6 +12,8 @@ public sealed record RgbDeviceDefault
 {
     public string Key { get; init; } = string.Empty;
     public string DeviceName { get; init; } = string.Empty;
+    /// <summary>Raw OpenRGB device_type; null for snapshots saved before it was recorded. Used to re-match moved devices.</summary>
+    public int? DeviceType { get; init; }
     public DateTimeOffset CapturedAt { get; init; }
     public int ModeIndex { get; init; }
     public string ModeName { get; init; } = string.Empty;
@@ -90,6 +92,34 @@ public sealed class RgbDefaultsStore
         {
             Entries[snapshot.Key] = snapshot;
             SaveLocked();
+        }
+    }
+
+    /// <summary>A copy of every stored snapshot.</summary>
+    public IReadOnlyList<RgbDeviceDefault> GetAll()
+    {
+        lock (_gate) return Entries.Values.ToArray();
+    }
+
+    /// <summary>
+    /// Removes <paramref name="removeKeys"/>, then stores <paramref name="snapshots"/> (replacing entries with the same key),
+    /// and saves once if anything changed — one write for a whole key migration. Returns whether anything changed.
+    /// </summary>
+    public bool Rewrite(IEnumerable<string> removeKeys, IEnumerable<RgbDeviceDefault> snapshots)
+    {
+        lock (_gate)
+        {
+            var changed = false;
+            foreach (var key in removeKeys) changed |= Entries.Remove(key);
+            foreach (var s in snapshots)
+            {
+                if (string.IsNullOrEmpty(s.Key)) continue;
+                Entries[s.Key] = s;
+                changed = true;
+            }
+
+            if (changed) SaveLocked();
+            return changed;
         }
     }
 

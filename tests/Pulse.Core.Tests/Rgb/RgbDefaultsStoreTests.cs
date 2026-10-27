@@ -135,6 +135,49 @@ public sealed class RgbDefaultsStoreTests : IDisposable
     }
 
     [Fact]
+    public void Rewrite_RemovesThenStores_InOneSave_AndReportsWhetherAnythingChanged()
+    {
+        var store = NewStore();
+        store.AddMissing(new[] { Snapshot("old-a"), Snapshot("old-b"), Snapshot("keep") });
+
+        var changed = store.Rewrite(new[] { "old-a", "old-b", "absent" }, new[] { Snapshot("new", deviceName: "moved") with { DeviceType = 5 } });
+
+        Assert.True(changed);
+        var reloaded = NewStore();
+        Assert.Equal(new[] { "keep", "new" }, reloaded.GetAll().Select(e => e.Key).Order(StringComparer.Ordinal));
+        Assert.Equal(("moved", 5), (reloaded.Get("new")!.DeviceName, reloaded.Get("new")!.DeviceType));
+        Assert.Equal(new[] { "rgb-defaults.json" }, Directory.GetFiles(_dir).Select(f => Path.GetFileName(f)));
+        Assert.False(store.Rewrite(new[] { "absent" }, Array.Empty<RgbDeviceDefault>()));
+    }
+
+    [Fact]
+    public void GetAll_IsACopy()
+    {
+        var store = NewStore();
+        store.Set(Snapshot("k"));
+        var all = store.GetAll();
+
+        store.Set(Snapshot("k2"));
+
+        Assert.Single(all);
+        Assert.Equal(2, store.GetAll().Count);
+    }
+
+    [Fact]
+    public void FileWithoutDeviceType_LoadsWithANullType_AndANewSaveOmitsIt()
+    {
+        File.WriteAllText(_path, """{ "Version": 1, "Devices": [ { "Key": "ASUS|HID: \\\\?\\HID#VID_0B05&PID_193E&MI_01#8&1b8da785&0&0000#{x}|", "DeviceName": "ASUS", "ModeName": "Direct", "LedColors": [ "#FF3B30" ] } ] }""");
+
+        var store = NewStore();
+        var entry = Assert.Single(store.GetAll());
+        Assert.Equal(@"ASUS|HID: \\?\HID#VID_0B05&PID_193E&MI_01#8&1b8da785&0&0000#{x}|", entry.Key);
+        Assert.Null(entry.DeviceType);
+
+        store.Set(Snapshot("other"));
+        Assert.DoesNotContain("DeviceType", File.ReadAllText(_path));
+    }
+
+    [Fact]
     public void BlankPath_FallsBackToTheDefaultPathUnderAppData()
     {
         var store = new RgbDefaultsStore("   ", NullLogger.Instance);

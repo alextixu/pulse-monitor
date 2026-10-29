@@ -145,6 +145,9 @@ public static class Strings
     public const string SettingTheme = "主題";
     public const string SettingTrayIcon = "系統匣圖示";
     public const string SettingHardwareRefresh = "硬體更新間隔（秒）";
+    public const string HardwareCadenceNote = "硬體資料在面板開著時每秒更新，關閉時每 2 秒（風扇控制照常運作）。";
+    public const string SettingRestoreLighting = "啟動時還原燈光";
+    public const string SettingRestoreLightingHint = "Pulse 啟動後，把每個裝置恢復成你上次設定的燈光";
     public const string SettingBatteryRefresh = "電量更新間隔（秒）";
     public const string SettingOpenRgbHost = "主機";
     public const string SettingOpenRgbPort = "連接埠";
@@ -205,8 +208,8 @@ public static class Strings
     public const string OpenSettingsFolder = "開啟設定檔資料夾";
     public const string OpenLogFile = "開啟記錄檔";
     public const string SettingsTelemetry = "硬體記錄";
-    public const string SettingTelemetryEnabled = "每秒記錄溫度、使用率與功耗";
-    public const string SettingTelemetryHint = "寫成 CSV（可用 Excel 開啟），每小時清除一次並保留前一小時；開啟時硬體每秒更新。";
+    public const string SettingTelemetryEnabled = "記錄溫度、使用率與功耗";
+    public const string SettingTelemetryHint = "寫成 CSV（可用 Excel 開啟），面板開著時每秒、關閉時每 2 秒一筆；每小時清除一次並保留前一小時。";
     public const string OpenTelemetryFolder = "開啟記錄資料夾";
     public const string TestConnection = "連線測試";
     public const string DemoModeBadge = "示範模式";
@@ -244,6 +247,9 @@ public static class Strings
     public const string RestoreUnavailable = "尚未記錄預設狀態，也沒有可切換的韌體燈效";
     public const string SaveCurrentAsDefaultTip = "之後「還原預設」會回到現在的燈光狀態";
     public const string SavedAsDefault = "已將目前狀態設為預設";
+    public const string ForgetDevice = "不要記住這個裝置";
+    public const string ForgetDeviceTip = "Pulse 啟動時不再還原這個裝置的燈光（之後再改燈光又會重新記住）";
+    public const string Forgotten = "已不再記住這個裝置的燈光";
     public const string TurnedOff = "已關燈";
     public const string RestoredDefault = "已還原預設";
 

@@ -33,8 +33,8 @@ public sealed partial class SettingsViewModel : TabViewModelBase
         [nameof(AppSettings.TrayIconMode)] = new[] { nameof(SelectedTrayIconMode) },
         [nameof(AppSettings.StartWithSystem)] = new[] { nameof(StartWithSystem) },
         [nameof(AppSettings.RequestElevationOnStartup)] = new[] { nameof(RequestElevationOnStartup) },
-        [nameof(AppSettings.HardwareRefreshSeconds)] = new[] { nameof(HardwareRefreshSeconds), nameof(HardwareRefreshText) },
         [nameof(AppSettings.BatteryRefreshSeconds)] = new[] { nameof(BatteryRefreshSeconds), nameof(BatteryRefreshText) },
+        [nameof(AppSettings.RestoreLightingOnStartup)] = new[] { nameof(RestoreLightingOnStartup) },
         [nameof(AppSettings.OpenRgbHost)] = new[] { nameof(OpenRgbHost) },
         [nameof(AppSettings.OpenRgbPort)] = new[] { nameof(OpenRgbPort) },
         [nameof(AppSettings.AutoConnectOpenRgb)] = new[] { nameof(AutoConnectOpenRgb) },
@@ -190,19 +190,7 @@ public sealed partial class SettingsViewModel : TabViewModelBase
     }
 
     // ---- 更新頻率 ----
-
-    public double HardwareRefreshSeconds
-    {
-        get => S.HardwareRefreshSeconds;
-        set
-        {
-            var v = (int)Math.Clamp(Math.Round(value), 1, 10);
-            if (S.HardwareRefreshSeconds == v) return;
-            Send(SettingsPatch.Of(nameof(AppSettings.HardwareRefreshSeconds), v));
-        }
-    }
-
-    public string HardwareRefreshText => string.Format(Strings.SecondsFormat, S.HardwareRefreshSeconds);
+    // The hardware cadence is fixed by the agent (1 s while the popover is visible, 2 s otherwise); only batteries are configurable.
 
     public double BatteryRefreshSeconds
     {
@@ -258,6 +246,17 @@ public sealed partial class SettingsViewModel : TabViewModelBase
         {
             if (S.UseBundledOpenRgb == value) return;
             Send(SettingsPatch.Of(nameof(AppSettings.UseBundledOpenRgb), value));
+        }
+    }
+
+    /// <summary>Re-apply the remembered lighting once after the agent starts.</summary>
+    public bool RestoreLightingOnStartup
+    {
+        get => S.RestoreLightingOnStartup;
+        set
+        {
+            if (S.RestoreLightingOnStartup == value) return;
+            Send(SettingsPatch.Of(nameof(AppSettings.RestoreLightingOnStartup), value));
         }
     }
 

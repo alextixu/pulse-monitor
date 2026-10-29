@@ -462,6 +462,15 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
         _log.LogInformation("RGB {Device}: current state saved as default", Name);
     });
 
+    /// <summary>「不要記住這個裝置」: the agent drops the remembered lighting, so a restart leaves the device as it is.</summary>
+    [RelayCommand]
+    private Task ForgetAsync() => RunAsync(Command(RgbCommandKind.Forget), devices =>
+    {
+        SyncFrom(devices);
+        Notice = Strings.Forgotten;
+        _log.LogInformation("RGB {Device}: lighting no longer remembered", Name);
+    });
+
     /// <summary>
     /// A command for this device. The key is always sent (empty for a backend without keys, never null: a null key
     /// would address every device).

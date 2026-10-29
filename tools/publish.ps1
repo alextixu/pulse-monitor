@@ -20,8 +20,9 @@ $agentExe = Join-Path $Output 'Pulse.exe'
 
 if ($Deploy -and (Test-Path $agentExe)) {
     Write-Host '正在關閉 Pulse（--quit，風扇會先交回 BIOS / 驅動）…'
-    & $agentExe --quit
-    if ($LASTEXITCODE -ne 0) { throw "Pulse --quit 失敗（結束代碼 $LASTEXITCODE），未發佈。" }
+    # Pulse.exe is a GUI-subsystem program: PowerShell would not wait for it with "&", so wait explicitly.
+    $quit = Start-Process -FilePath $agentExe -ArgumentList '--quit' -Wait -PassThru -WindowStyle Hidden
+    if ($quit.ExitCode -ne 0) { throw "Pulse --quit 失敗（結束代碼 $($quit.ExitCode)），未發佈。" }
 }
 
 # The UI exits on its own when the agent quits; never publish over a running copy (its DLLs would be locked).

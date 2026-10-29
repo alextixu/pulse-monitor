@@ -11,11 +11,12 @@ namespace Pulse.Logitech;
 /// receivers and devices connected directly over USB or Bluetooth. HID handles are kept open between polls. When a
 /// handle cannot be opened or its transport faults (typically G HUB holding the collection, or a device that is off),
 /// the handle is closed at once but the interface and its last device snapshots are kept; the interface is then
-/// reopened on an exponential back-off (30 s, 1 min, 2 min, 5 min, then every 15 min) while its devices keep being
-/// reported as disconnected with their last known level. Each call is bounded to a few seconds and never throws for
+/// reopened on a back-off (30 s, 1 min, then every 2 min; see <see cref="HidppBackoff"/>) while its devices keep being
+/// reported as disconnected with their last known level. A Windows device change (<see cref="OnDevicesChanged"/>) lets
+/// every backing-off interface retry on the next poll. Each call is bounded to a few seconds and never throws for
 /// "nothing found".
 /// </summary>
-public sealed class LogitechHidppBatteryProvider : IBatteryProvider, IDisposable
+public sealed class LogitechHidppBatteryProvider : IBatteryProvider, IDeviceChangeAware, IDisposable
 {
     public const string ProviderName = "Logitech";
 
@@ -26,6 +27,8 @@ public sealed class LogitechHidppBatteryProvider : IBatteryProvider, IDisposable
     private readonly Dictionary<string, HidppInterface> _interfaces = new(StringComparer.OrdinalIgnoreCase);
     private readonly CancellationTokenSource _shutdown = new();
     private volatile bool _disposed;
+    /// <summary>Set by <see cref="OnDevicesChanged"/> (any thread), consumed by the next poll under <see cref="_gate"/>.</summary>
+    private volatile bool _devicesChanged;
 
     public LogitechHidppBatteryProvider(ILogger<LogitechHidppBatteryProvider>? logger = null)
     {
@@ -70,6 +73,18 @@ public sealed class LogitechHidppBatteryProvider : IBatteryProvider, IDisposable
         }
     }
 
+    /// <summary>
+    /// A USB / Bluetooth device arrived or left (WM_DEVICECHANGE, from the agent's tray window): a receiver that was
+    /// re-plugged, a mouse that woke up or G HUB letting go is worth trying at once. The interfaces are only touched by
+    /// the poll (under the gate), so this just flags the next poll, which re-enumerates the HID collections anyway and then
+    /// lets every backing-off interface retry immediately (keeping its failure count).
+    /// </summary>
+    public void OnDevicesChanged()
+    {
+        if (_disposed) return;
+        _devicesChanged = true;
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
@@ -101,6 +116,11 @@ public sealed class LogitechHidppBatteryProvider : IBatteryProvider, IDisposable
         var token = budget.Token;
 
         SyncInterfaces();
+        if (_devicesChanged)
+        {
+            _devicesChanged = false;
+            RetryBackingOffInterfaces();
+        }
 
         var result = new List<BatteryDevice>();
         foreach (var iface in _interfaces.Values.ToList())
@@ -245,6 +265,19 @@ public sealed class LogitechHidppBatteryProvider : IBatteryProvider, IDisposable
         return order.Select(id => best[id]).ToList();
 
         static int Rank(BatteryDevice d) => (d.IsConnected ? 2 : 0) + (d.Percent is null ? 0 : 1);
+    }
+
+    /// <summary>Makes every interface that is backing off due for an attempt in this poll (device change).</summary>
+    private void RetryBackingOffInterfaces()
+    {
+        var retried = 0;
+        foreach (var iface in _interfaces.Values)
+        {
+            if (!iface.Backoff.IsActive) continue;
+            iface.Backoff.RetrySoon();
+            retried++;
+        }
+        if (retried > 0) _logger.LogDebug("Device change: retrying {Count} backing-off HID++ interface(s) now", retried);
     }
 
     /// <summary>

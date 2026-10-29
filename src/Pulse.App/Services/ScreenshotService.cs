@@ -13,7 +13,7 @@ namespace Pulse.App.Services;
 /// "--screenshot &lt;dir&gt;" implementation: shows the popover, switches theme + tab, renders the window root with
 /// <see cref="RenderTargetBitmap"/> to &lt;dir&gt;\tab-&lt;name&gt;.png (light) and tab-&lt;name&gt;-dark.png.
 /// The fans tab is additionally captured per fan mode: tab-fans-quiet / -synced / -auto[-dark][-full].png
-/// (the demo settings store keeps those mode switches in memory).
+/// (mode switches go to the in-process demo agent, whose settings store keeps them in memory).
 /// </summary>
 public static class ScreenshotService
 {
@@ -27,11 +27,21 @@ public static class ScreenshotService
         window.ShowPopover();
         await SettleAsync(250);
 
-        // Let the fan presence tracker see enough samples to hide the demo's empty headers.
+        // Let the agent's fan presence tracker see enough samples to hide the demo's empty headers.
         var fansTab = viewModel.FansTab;
         for (var waited = 0; waited < 8000 && !fansTab.HasHiddenFans; waited += 250) await Task.Delay(250);
 
-        // The regular per-tab shots show the fans tab in 個別 mode.
+        // The lighting tab loads its device list lazily; have it ready before the first capture of that tab.
+        try
+        {
+            await viewModel.LightingTab.EnsureDevicesLoadedAsync();
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning(ex, "Loading the demo RGB devices failed");
+        }
+
+        // The regular per-tab shots show the fans tab in 個別 mode (SetFanModeAsync on the demo agent).
         fansTab.Mode = FanMode.Individual;
 
         foreach (var theme in new[] { AppTheme.Light, AppTheme.Dark })

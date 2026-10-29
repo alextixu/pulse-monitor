@@ -9,7 +9,7 @@ namespace Pulse.Windows;
 /// <summary>UAC elevation: detects the Administrators token and re-launches the current exe with the "runas" verb.</summary>
 public sealed class WindowsElevationService : IElevationService
 {
-    /// <summary>Appended to the original arguments so the new instance knows it was spawned by <see cref="RelaunchElevated"/>.</summary>
+    /// <summary>Appended to the original arguments so the new instance knows it was spawned by <see cref="RelaunchElevated()"/>.</summary>
     public const string ElevatedRelaunchArgument = "--elevated-relaunch";
 
     private const int ErrorCancelled = 1223; // ERROR_CANCELLED: user dismissed the UAC prompt
@@ -27,7 +27,14 @@ public sealed class WindowsElevationService : IElevationService
 
     public bool CanElevate => OperatingSystem.IsWindows();
 
-    public bool RelaunchElevated()
+    public bool RelaunchElevated() => RelaunchElevated(Array.Empty<string>());
+
+    /// <summary>
+    /// Like <see cref="RelaunchElevated()"/>, but drops <paramref name="removeArguments"/> from the forwarded arguments and
+    /// appends each of <paramref name="addArguments"/> that is not already there (flags only, compared case-insensitively),
+    /// e.g. "--show-ui" when the popover was open.
+    /// </summary>
+    public bool RelaunchElevated(IReadOnlyCollection<string> addArguments, IReadOnlyCollection<string>? removeArguments = null)
     {
         if (!CanElevate) return false;
         if (IsElevated)
@@ -51,7 +58,14 @@ public sealed class WindowsElevationService : IElevationService
         };
         foreach (var arg in Environment.GetCommandLineArgs().Skip(1))
         {
-            if (!string.Equals(arg, ElevatedRelaunchArgument, StringComparison.Ordinal)) startInfo.ArgumentList.Add(arg);
+            if (string.Equals(arg, ElevatedRelaunchArgument, StringComparison.Ordinal)) continue;
+            if (removeArguments is not null && removeArguments.Contains(arg, StringComparer.OrdinalIgnoreCase)) continue;
+            startInfo.ArgumentList.Add(arg);
+        }
+
+        foreach (var arg in addArguments)
+        {
+            if (!startInfo.ArgumentList.Contains(arg, StringComparer.OrdinalIgnoreCase)) startInfo.ArgumentList.Add(arg);
         }
 
         startInfo.ArgumentList.Add(ElevatedRelaunchArgument);

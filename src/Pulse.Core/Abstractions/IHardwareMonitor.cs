@@ -19,6 +19,12 @@ public interface IHardwareMonitor : IDisposable
     Task<HardwareSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Synchronous <see cref="GetSnapshotAsync"/> for a dedicated polling thread (no thread-pool hop). Blocks the caller
+    /// for the duration of the sensor update.
+    /// </summary>
+    HardwareSnapshot GetSnapshot(CancellationToken cancellationToken = default) => GetSnapshotAsync(cancellationToken).GetAwaiter().GetResult();
+
+    /// <summary>
     /// Sets a fan duty cycle (0..100) for the fan with the given <see cref="FanInfo.Id"/>.
     /// Pass <c>null</c> to hand control back to the firmware / automatic curve.
     /// </summary>

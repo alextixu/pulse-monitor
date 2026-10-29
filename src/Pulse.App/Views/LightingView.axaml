@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Pulse.App.ViewModels"
-             xmlns:loc="using:Pulse.App.Localization"
+             xmlns:loc="using:Pulse.Core.Localization"
              xmlns:conv="using:Pulse.App.Converters"
              xmlns:controls="using:Pulse.App.Controls"
              xmlns:models="using:Pulse.Core.Models"
@@ -154,6 +154,12 @@
                                                       ToolTip.Tip="{x:Static loc:Strings.SaveCurrentAsDefaultTip}">
                                                 <MenuItem.Icon>
                                                     <PathIcon Data="{StaticResource IconCheck}" Width="14" Height="14" />
+                                                </MenuItem.Icon>
+                                            </MenuItem>
+                                            <MenuItem Header="{x:Static loc:Strings.ForgetDevice}" Command="{Binding ForgetCommand}"
+                                                      ToolTip.Tip="{x:Static loc:Strings.ForgetDeviceTip}">
+                                                <MenuItem.Icon>
+                                                    <PathIcon Data="{StaticResource IconClose}" Width="14" Height="14" />
                                                 </MenuItem.Icon>
                                             </MenuItem>
                                         </MenuFlyout>

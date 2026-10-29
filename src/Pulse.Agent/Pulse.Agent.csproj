@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <!-- The installed scheduled task, tools\install-pulse.ps1 (its crash restart matches "Pulse.exe") and the quit switch of
+         Pulse.exe all name this executable: it must stay Pulse.exe. -->
+    <AssemblyName>Pulse</AssemblyName>
+    <RootNamespace>Pulse.Agent</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Description>Resident Pulse agent: Win32 tray icon, hardware / battery / fan / RGB engine and the pipe server for the Pulse.UI popover.</Description>
+    <!-- Stack traces in app.log keep their line numbers without shipping separate .pdb files. -->
+    <DebugType>embedded</DebugType>
+    <PublishReadyToRun>true</PublishReadyToRun>
+  </PropertyGroup>
+
+  <!-- Runtime knobs for a small resident process (decisions-v2 §13; measured in spikes/tray): no ICU, no background GC thread,
+       no PGO re-JIT, no EventSource / hot-reload plumbing. System.GC.ConserveMemory comes from runtimeconfig.template.json. -->
+  <PropertyGroup>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
+    <EventSourceSupport>false</EventSourceSupport>
+    <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+  </PropertyGroup>
+
+  <!-- Bundled OpenRGB (GPL-2.0, separate program): prepared by tools\fetch-openrgb.ps1, never committed.
+       Copied to <output>\OpenRGB\ together with its notice and license when present (OpenRgbServerLauncher looks for it next
+       to the executable that hosts Pulse.Rgb, i.e. this one). -->
+  <PropertyGroup>
+    <BundledOpenRgbDir>$(MSBuildThisFileDirectory)..\..\third_party\OpenRGB\</BundledOpenRgbDir>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(BundledOpenRgbDir)OpenRGB.exe')">
+    <None Include="$(BundledOpenRgbDir)**\*" LinkBase="OpenRGB" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\third_party\OpenRGB-NOTICE.md" Link="OpenRGB\NOTICE.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\..\licenses\GPL-2.0.txt" Link="OpenRGB\LICENSE-GPL-2.0.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.20" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pulse.Core\Pulse.Core.csproj" />
+    <ProjectReference Include="..\Pulse.Engine\Pulse.Engine.csproj" />
+    <ProjectReference Include="..\Pulse.Hardware\Pulse.Hardware.csproj" />
+    <ProjectReference Include="..\Pulse.Rgb\Pulse.Rgb.csproj" />
+    <ProjectReference Include="..\Pulse.Logitech\Pulse.Logitech.csproj" />
+    <ProjectReference Include="..\Pulse.Asus\Pulse.Asus.csproj" />
+    <ProjectReference Include="..\Pulse.Windows\Pulse.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

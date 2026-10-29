@@ -1,5 +1,6 @@
 namespace Pulse.Core.Models;
 
+[System.Text.Json.Serialization.JsonConverter(typeof(Pulse.Core.Ipc.RgbColorJsonConverter))]
 public readonly record struct RgbColor(byte R, byte G, byte B)
 {
     public static RgbColor FromHex(string hex)
@@ -65,8 +66,15 @@ public sealed record RgbZone
 
 public sealed record RgbDevice
 {
-    /// <summary>Controller index as assigned by the RGB backend (OpenRGB device index).</summary>
+    /// <summary>Controller index as assigned by the RGB backend (OpenRGB device index). Changes when the server restarts.</summary>
     public required int Index { get; init; }
+    /// <summary>
+    /// Stable identity across server restarts and USB re-enumeration (name | location without the Windows instance segment |
+    /// serial; "#2" etc. for identical devices). Keys the saved defaults and the remembered lighting.
+    /// </summary>
+    public string Key { get; init; } = string.Empty;
+    /// <summary>True when a "first seen" default snapshot is stored for <see cref="Key"/>.</summary>
+    public bool HasDefault { get; init; }
     public required string Name { get; init; }
     /// <summary>Backend type string, e.g. "Motherboard", "Mouse", "Keyboard", "DRAM", "GPU", "Cooler", "LED Strip".</summary>
     public required string Type { get; init; }

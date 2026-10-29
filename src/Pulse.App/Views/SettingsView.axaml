@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Pulse.App.ViewModels"
-             xmlns:loc="using:Pulse.App.Localization"
+             xmlns:loc="using:Pulse.Core.Localization"
              xmlns:conv="using:Pulse.App.Converters"
              x:Class="Pulse.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
@@ -80,13 +80,9 @@
             <StackPanel Spacing="4">
                 <TextBlock Classes="title" Margin="0,0,0,4" Text="{x:Static loc:Strings.SettingsRefresh}" />
 
-                <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingHardwareRefresh}" />
-                    <TextBlock Grid.Column="1" Classes="value-sm" FontSize="14" TextWrapping="NoWrap" Text="{Binding HardwareRefreshText}" />
-                </Grid>
-                <Slider Minimum="1" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding HardwareRefreshSeconds, Mode=TwoWay}" />
+                <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static loc:Strings.HardwareCadenceNote}" />
 
-                <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
+                <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
                     <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingBatteryRefresh}" />
                     <TextBlock Grid.Column="1" Classes="value-sm" FontSize="14" TextWrapping="NoWrap" Text="{Binding BatteryRefreshText}" />
                 </Grid>
@@ -124,6 +120,15 @@
                         <TextBlock Classes="caption" Text="{Binding BundledOpenRgbHint}" />
                     </StackPanel>
                     <ToggleSwitch Grid.Column="1" Classes="plain" IsChecked="{Binding UseBundledOpenRgb, Mode=TwoWay}" />
+                </Grid>
+                <Border Classes="divider" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Classes="row-label" Text="{x:Static loc:Strings.SettingRestoreLighting}" />
+                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{x:Static loc:Strings.SettingRestoreLightingHint}" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" Classes="plain" IsChecked="{Binding RestoreLightingOnStartup, Mode=TwoWay}" />
                 </Grid>
                 <Border Classes="divider" />
 

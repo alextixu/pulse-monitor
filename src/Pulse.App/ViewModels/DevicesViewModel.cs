@@ -1,9 +1,8 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using Avalonia.Media;
 using Pulse.App.Controls;
 using Pulse.App.Converters;
-using Pulse.App.Localization;
+using Pulse.Core.Localization;
 using Pulse.App.Services;
 using Pulse.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -12,7 +11,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Pulse.App.ViewModels;
 
-/// <summary>裝置 tab: one card per battery device (<c>Monitoring.VisibleBatteries</c>); items are updated in place keyed by device id.</summary>
+/// <summary>
+/// 裝置 tab: one card per battery device (<see cref="AgentConnection.VisibleBatteries"/>); items are updated in place keyed by
+/// device id. Hiding / showing devices patches <see cref="AppSettings.HiddenDeviceIds"/> (the card disappears at once:
+/// the visible list is derived from the optimistic settings copy).
+/// </summary>
 public sealed partial class DevicesViewModel : TabViewModelBase
 {
     private readonly ILogger<DevicesViewModel> _log;
@@ -23,57 +26,38 @@ public sealed partial class DevicesViewModel : TabViewModelBase
     [ObservableProperty] private int _hiddenCount;
     [ObservableProperty] private string _showHiddenText = string.Empty;
 
-    public DevicesViewModel(MonitoringService monitoring, SettingsService settings, ILogger<DevicesViewModel> log)
-        : base(MainTab.Devices, monitoring, settings)
+    public DevicesViewModel(AgentConnection agent, ILogger<DevicesViewModel> log)
+        : base(MainTab.Devices, agent)
     {
         _log = log;
-        Monitoring.PropertyChanged += OnMonitoringPropertyChanged;
-        Sync(Monitoring.VisibleBatteries);
+        Agent.BatteriesUpdated += (_, _) => Sync(Agent.VisibleBatteries);
+        Sync(Agent.VisibleBatteries);
     }
 
     public ObservableCollection<DeviceItemViewModel> Devices { get; } = new();
 
     public bool HasHidden => HiddenCount > 0;
 
-    public override string PlaceholderText => Strings.PlaceholderDevices;
-
     protected override void OnActivated()
     {
-        Monitoring.NotifyPopoverOpened();
+        // Showing the popover already makes the agent refresh batteries (at most every 5 s); nothing to do per tab.
         _log.LogDebug("Devices tab activated");
     }
 
     [RelayCommand]
     private void ShowHidden()
     {
-        if (Settings.Settings.HiddenDeviceIds.Count == 0) return;
-        Settings.Settings.HiddenDeviceIds.Clear();
-        Settings.NotifyChanged(nameof(AppSettings.HiddenDeviceIds));
-        Monitoring.RecomputeSummary();
+        if (Agent.Settings.HiddenDeviceIds.Count == 0) return;
+        _ = Agent.UpdateSettingAsync(SettingsPatch.Of(nameof(AppSettings.HiddenDeviceIds), Array.Empty<string>()));
         _log.LogInformation("Hidden device list cleared");
     }
 
     private void Hide(string deviceId)
     {
-        var hidden = Settings.Settings.HiddenDeviceIds;
+        var hidden = Agent.Settings.HiddenDeviceIds;
         if (hidden.Contains(deviceId)) return;
-        hidden.Add(deviceId);
-        Settings.NotifyChanged(nameof(AppSettings.HiddenDeviceIds));
-        Monitoring.RecomputeSummary();
+        _ = Agent.UpdateSettingAsync(SettingsPatch.Of(nameof(AppSettings.HiddenDeviceIds), hidden.Append(deviceId).ToList()));
         _log.LogInformation("Device {Id} hidden", deviceId);
-    }
-
-    private void OnMonitoringPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        switch (e.PropertyName)
-        {
-            case nameof(MonitoringService.VisibleBatteries):
-                Sync(Monitoring.VisibleBatteries);
-                break;
-            case nameof(MonitoringService.LastBatteryUpdate):
-                UpdatedText = Monitoring.LastBatteryUpdate is { } t ? string.Format(Strings.StatusUpdatedFormat, t.ToString("HH:mm:ss")) : string.Empty;
-                break;
-        }
     }
 
     partial void OnHiddenCountChanged(int value)
@@ -111,17 +95,16 @@ public sealed partial class DevicesViewModel : TabViewModelBase
         }
 
         IsEmpty = devices.Count == 0;
-        var hiddenIds = Settings.Settings.HiddenDeviceIds;
-        HiddenCount = hiddenIds.Count == 0 ? 0 : Monitoring.LatestBatteries.Count(d => hiddenIds.Contains(d.Id));
+        var hiddenIds = Agent.Settings.HiddenDeviceIds;
+        HiddenCount = hiddenIds.Count == 0 ? 0 : Agent.Batteries.All.Count(d => hiddenIds.Contains(d.Id));
 
-        var lowest = Monitoring.LowestBattery;
+        var lowest = Agent.LowestBattery;
         HeaderText = devices.Count == 0
             ? Strings.NoBatteryDevices
             : string.Format(Strings.DeviceCountFormat, devices.Count, lowest is { } l ? $"{l.Percent}%" : Strings.NotAvailable);
-        if (Monitoring.LastBatteryUpdate is { } at)
-        {
-            UpdatedText = string.Format(Strings.StatusUpdatedFormat, at.ToString("HH:mm:ss"));
-        }
+        UpdatedText = Agent.Batteries.LastUpdate is { } at
+            ? string.Format(Strings.StatusUpdatedFormat, at.ToString("HH:mm:ss"))
+            : string.Empty;
     }
 }
 

@@ -5,21 +5,9 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Pulse.Core.Abstractions;
 
 namespace Pulse.Rgb;
-
-public enum OpenRgbLaunchResult
-{
-    /// <summary>Something already answers on the SDK port (the user's own OpenRGB, or one started earlier).</summary>
-    AlreadyRunning,
-    /// <summary>The bundled OpenRGB was started and its SDK port is open.</summary>
-    Started,
-    /// <summary>No bundled OpenRGB next to Pulse.exe.</summary>
-    NotBundled,
-    /// <summary>The configured host is not this computer, so nothing can be launched.</summary>
-    NotLocal,
-    Failed,
-}
 
 /// <summary>
 /// Starts the OpenRGB copy shipped in <c>&lt;Pulse folder&gt;\OpenRGB\</c> as a headless SDK server
@@ -27,7 +15,7 @@ public enum OpenRgbLaunchResult
 /// OpenRGB stays a separate GPL program: Pulse only runs it and talks to it over TCP.
 /// On Windows the process is tied to Pulse with a kill-on-close job object, so it cannot outlive a crashed Pulse.
 /// </summary>
-public sealed class OpenRgbServerLauncher : IDisposable
+public sealed class OpenRgbServerLauncher : IRgbServerLauncher
 {
     private static readonly TimeSpan PortWaitTimeout = TimeSpan.FromSeconds(30);
 
@@ -48,23 +36,25 @@ public sealed class OpenRgbServerLauncher : IDisposable
 
     public static bool IsBundled => File.Exists(BundledExecutable);
 
+    bool IRgbServerLauncher.IsBundled => IsBundled;
+
     /// <summary>True while an OpenRGB process started by this launcher is running.</summary>
     public bool IsRunningBundled => _process is { HasExited: false };
 
     /// <summary>Extra command-line arguments (diagnostics / tests, e.g. "--nodetect").</summary>
     public string? AdditionalArguments { get; set; }
 
-    public async Task<OpenRgbLaunchResult> EnsureRunningAsync(string host, int port, CancellationToken cancellationToken = default)
+    public async Task<RgbLaunchResult> EnsureRunningAsync(string host, int port, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (await IsPortOpenAsync(host, port, cancellationToken).ConfigureAwait(false)) return OpenRgbLaunchResult.AlreadyRunning;
-            if (!IsLocal(host)) return OpenRgbLaunchResult.NotLocal;
-            if (!IsBundled) return OpenRgbLaunchResult.NotBundled;
+            if (await IsPortOpenAsync(host, port, cancellationToken).ConfigureAwait(false)) return RgbLaunchResult.AlreadyRunning;
+            if (!IsLocal(host)) return RgbLaunchResult.NotLocal;
+            if (!IsBundled) return RgbLaunchResult.NotBundled;
 
-            if (!IsRunningBundled && !Start(port)) return OpenRgbLaunchResult.Failed;
+            if (!IsRunningBundled && !Start(port)) return RgbLaunchResult.Failed;
 
             var deadline = Stopwatch.StartNew();
             while (deadline.Elapsed < PortWaitTimeout)
@@ -72,18 +62,18 @@ public sealed class OpenRgbServerLauncher : IDisposable
                 if (_process is null || _process.HasExited)
                 {
                     _logger.LogWarning("Bundled OpenRGB exited early (code {Code})", _process?.HasExited == true ? _process.ExitCode : -1);
-                    return OpenRgbLaunchResult.Failed;
+                    return RgbLaunchResult.Failed;
                 }
                 if (await IsPortOpenAsync(host, port, cancellationToken).ConfigureAwait(false))
                 {
                     _logger.LogInformation("Bundled OpenRGB SDK server is up on port {Port} after {Elapsed} ms", port, deadline.ElapsedMilliseconds);
-                    return OpenRgbLaunchResult.Started;
+                    return RgbLaunchResult.Started;
                 }
                 await Task.Delay(250, cancellationToken).ConfigureAwait(false);
             }
 
             _logger.LogWarning("Bundled OpenRGB did not open port {Port} within {Timeout} s", port, PortWaitTimeout.TotalSeconds);
-            return OpenRgbLaunchResult.Failed;
+            return RgbLaunchResult.Failed;
         }
         finally
         {

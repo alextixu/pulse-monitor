@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
-  <assemblyIdentity version="0.1.0.0" name="Pulse.App"/>
+  <assemblyIdentity version="0.1.0.0" name="Pulse.UI"/>
 
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <!-- asInvoker: the app starts without UAC. CPU temperature / fan control need elevation; the app offers an
-             in-app "Run as administrator" relaunch (IElevationService.RelaunchElevated) instead of forcing it. -->
+        <!-- asInvoker: the popover inherits the agent's token (the agent starts it). Elevation is the agent's job
+             ("以系統管理員身分重新啟動" asks the agent to relaunch itself). -->
         <requestedExecutionLevel level="asInvoker" uiAccess="false" />
       </requestedPrivileges>
     </security>

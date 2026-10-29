@@ -8,9 +8,9 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceInclude Source="avares://Pulse/Styles/Theme.axaml" />
-                <ResourceInclude Source="avares://Pulse/Styles/Icons.axaml" />
-                <ResourceInclude Source="avares://Pulse/Controls/StatPill.axaml" />
+                <ResourceInclude Source="avares://Pulse.UI/Styles/Theme.axaml" />
+                <ResourceInclude Source="avares://Pulse.UI/Styles/Icons.axaml" />
+                <ResourceInclude Source="avares://Pulse.UI/Controls/StatPill.axaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
@@ -22,7 +22,7 @@
                 <ColorPaletteResources x:Key="Dark" Accent="#0A84FF" RegionColor="#1C1C1E" />
             </FluentTheme.Palettes>
         </FluentTheme>
-        <StyleInclude Source="avares://Pulse/Styles/Controls.axaml" />
+        <StyleInclude Source="avares://Pulse.UI/Styles/Controls.axaml" />
     </Application.Styles>
 
     <!-- Tab view models → views (used by the ContentControl in PopoverWindow) -->

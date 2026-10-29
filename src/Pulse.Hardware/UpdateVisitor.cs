@@ -21,6 +21,9 @@ internal sealed partial class UpdateVisitor : IVisitor
     private readonly Dictionary<string, long> _slowUpdatedAt = new(StringComparer.Ordinal);
     private readonly HashSet<string> _skippedLogged = new(StringComparer.Ordinal);
     private readonly Dictionary<string, NodeTiming> _timings = new(StringComparer.Ordinal);
+    /// <summary>Stopwatch timestamp until which GPU nodes are not updated (display driver being replaced); 0 = none.</summary>
+    private long _gpuPausedUntil;
+    private bool _gpuPauseLogged;
 
     public UpdateVisitor(ILogger logger, Func<IHardware, bool>? skipStorage = null)
     {
@@ -28,11 +31,29 @@ internal sealed partial class UpdateVisitor : IVisitor
         _skipStorage = skipStorage;
     }
 
+    /// <summary>
+    /// Stops reading GPU sensors for <paramref name="duration"/>. Called on a Windows device-change broadcast: while a
+    /// display driver is being reinstalled, NVML calls into the unloading driver crash the process with an access
+    /// violation that .NET cannot catch (2026-10-26, nvmlDeviceGetPowerUsage), so the fans could not be handed back.
+    /// The previous values stay in the snapshot meanwhile. Thread-safe.
+    /// </summary>
+    public void PauseGpus(TimeSpan duration)
+    {
+        Volatile.Write(ref _gpuPausedUntil, Stopwatch.GetTimestamp() + (long)(duration.TotalSeconds * Stopwatch.Frequency));
+    }
+
     public void VisitComputer(IComputer computer) => computer.Traverse(this);
 
     public void VisitHardware(IHardware hardware)
     {
         if (!ShouldUpdate(hardware)) return;
+        if (IsGpu(hardware) && Stopwatch.GetTimestamp() < Volatile.Read(ref _gpuPausedUntil))
+        {
+            if (!_gpuPauseLogged) _logger.LogInformation("Devices changed; GPU sensors paused for a moment (display driver may be reloading)");
+            _gpuPauseLogged = true;
+            return;
+        }
+        _gpuPauseLogged = false;
 
         var started = Stopwatch.GetTimestamp();
         var cpuStarted = ThreadCpu.Now();
@@ -103,6 +124,8 @@ internal sealed partial class UpdateVisitor : IVisitor
         // (~45 ms per poll on the test board), so it follows the slow cadence like DIMMs.
         return IsDimm(hardware) || hardware.HardwareType == HardwareType.EmbeddedController ? IsDue(hardware) : true;
     }
+
+    private static bool IsGpu(IHardware hardware) => hardware.HardwareType is HardwareType.GpuNvidia or HardwareType.GpuAmd or HardwareType.GpuIntel;
 
     /// <summary>Memory nodes other than the generic "/ram" and "/vram" ones are DIMMs read over SMBus.</summary>
     private static bool IsDimm(IHardware hardware)

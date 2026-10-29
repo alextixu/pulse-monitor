@@ -3,14 +3,13 @@ using System.ComponentModel;
 using Pulse.App.Controls;
 using Pulse.Core.Localization;
 using Pulse.App.Services;
-using Pulse.Core.Abstractions;
 using Pulse.Core.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 
 namespace Pulse.App.ViewModels;
 
-/// <summary>系統 tab: CPU / GPU / memory telemetry. Every value is an observable property refreshed from <c>Monitoring.HardwareUpdated</c>.</summary>
+/// <summary>系統 tab: CPU / GPU / memory telemetry. Every value is an observable property refreshed from <see cref="AgentConnection.HardwareUpdated"/>.</summary>
 public sealed partial class SystemViewModel : TabViewModelBase
 {
     public const int MaxCoreBars = 20;
@@ -46,22 +45,19 @@ public sealed partial class SystemViewModel : TabViewModelBase
     [ObservableProperty] private bool _hasOtherTemperatures;
     [ObservableProperty] private string _otherTemperaturesHeader = Strings.OtherTemperatures;
 
-    public SystemViewModel(MonitoringService monitoring, SettingsService settings, IElevationService elevation, ILogger<SystemViewModel> log)
-        : base(MainTab.System, monitoring, settings)
+    public SystemViewModel(AgentConnection agent, ILogger<SystemViewModel> log)
+        : base(MainTab.System, agent)
     {
-        Elevation = elevation;
         _log = log;
-        ShowElevationBanner = !elevation.IsElevated;
 
-        Monitoring.HardwareUpdated += (_, snapshot) => Apply(snapshot);
-        Monitoring.PropertyChanged += OnMonitoringPropertyChanged;
-        ApplyStatus(Monitoring.HardwareStatus);
-        Apply(Monitoring.LatestHardware);
+        Agent.HardwareUpdated += (_, frame) => Apply(frame.Snapshot);
+        Agent.PropertyChanged += OnAgentPropertyChanged;
+        ApplyStatus(Agent.HardwareStatus);
+        Apply(Agent.Hardware.Snapshot);
     }
 
-    public IElevationService Elevation { get; }
-
-    public bool IsElevated => Elevation.IsElevated;
+    /// <summary>Whether the agent runs elevated (from its Info; notified when that changes).</summary>
+    public bool IsElevated => Agent.Info.IsElevated;
 
     public ObservableCollection<CoreLoadItem> CoreLoads { get; } = new();
 
@@ -71,18 +67,27 @@ public sealed partial class SystemViewModel : TabViewModelBase
 
     public ObservableCollection<TemperatureItem> OtherTemperatures { get; } = new();
 
-    public override string PlaceholderText => Strings.PlaceholderSystem;
-
-    private void OnMonitoringPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnAgentPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MonitoringService.HardwareStatus)) ApplyStatus(Monitoring.HardwareStatus);
+        switch (e.PropertyName)
+        {
+            case nameof(AgentConnection.HardwareStatus):
+            case nameof(AgentConnection.IsReady):
+                ApplyStatus(Agent.HardwareStatus);
+                break;
+            case nameof(AgentConnection.Info):
+                OnPropertyChanged(nameof(IsElevated));
+                ApplyStatus(Agent.HardwareStatus);
+                break;
+        }
     }
 
     private void ApplyStatus(HardwareMonitorStatus status)
     {
         HardwareMessage = status.Message;
         HasHardwareMessage = !string.IsNullOrWhiteSpace(status.Message);
-        ShowElevationBanner = !Elevation.IsElevated && !status.IsElevated;
+        // Before the agent answered nothing is known: do not flash the banner at an elevated agent's user.
+        ShowElevationBanner = Agent.IsReady && !Agent.Info.IsElevated && !status.IsElevated;
     }
 
     private void Apply(HardwareSnapshot snapshot)

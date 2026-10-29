@@ -14,9 +14,10 @@ using Microsoft.Extensions.Logging;
 namespace Pulse.App.ViewModels;
 
 /// <summary>
-/// 風扇 tab: the fan-mode card (<see cref="FanModeService"/>) plus fans grouped by <see cref="FanInfo.Group"/>, updated in
-/// place after every snapshot. Headers that never reported a fan are hidden (<see cref="FanPresenceTracker"/>).
-/// Per-fan manual control (個別 mode) goes straight to <see cref="Hardware"/>.SetFanAsync.
+/// 風扇 tab: the fan-mode card plus fans grouped by <see cref="FanInfo.Group"/>, updated in place after every hardware
+/// frame. Headers that never reported a fan are hidden (the agent's <see cref="FanModeFanStatus.Presence"/>).
+/// The agent owns the fan settings: mode / synced duty / membership / manual duties are commands
+/// (<see cref="AgentConnection.SetFanModeAsync"/> …) and the settings broadcast only mirrors them back.
 /// </summary>
 public sealed partial class FansViewModel : TabViewModelBase
 {
@@ -25,6 +26,14 @@ public sealed partial class FansViewModel : TabViewModelBase
     private readonly ILogger<FansViewModel> _log;
     private readonly DispatcherTimer _syncedTimer;
     private bool _syncingSynced;
+    /// <summary>
+    /// Set while <see cref="Mode"/> is changed to mirror the agent's settings, so a broadcast is never sent back as a
+    /// SetFanMode (each extra mode switch hands every held fan back to the firmware).
+    /// </summary>
+    private bool _syncingMode;
+    /// <summary>SetFanMode / SetSyncedPercent commands not answered yet: broadcasts older than them are not mirrored.</summary>
+    private int _modeRequests;
+    private int _syncedRequests;
 
     [ObservableProperty] private bool _showBanner;
     [ObservableProperty] private string _bannerText = Strings.FanControlUnavailable;
@@ -49,50 +58,39 @@ public sealed partial class FansViewModel : TabViewModelBase
     [ObservableProperty] private bool _hasHiddenFans;
     [ObservableProperty] private string _hiddenText = string.Empty;
 
-    public FansViewModel(
-        MonitoringService monitoring,
-        SettingsService settings,
-        IHardwareMonitor hardware,
-        IElevationService elevation,
-        FanModeService fanModes,
-        ILogger<FansViewModel> log)
-        : base(MainTab.Fans, monitoring, settings)
+    public FansViewModel(AgentConnection agent, ILogger<FansViewModel> log)
+        : base(MainTab.Fans, agent)
     {
-        Hardware = hardware;
-        Elevation = elevation;
-        FanModes = fanModes;
         _log = log;
 
         _syncedTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = SyncedDebounce };
         _syncedTimer.Tick += (_, _) =>
         {
             _syncedTimer.Stop();
-            FanModes.SetSyncedPercent(SyncedPercent);
+            _ = SendSyncedPercentAsync(SyncedPercent);
         };
 
-        _mode = fanModes.Settings.FanMode;
+        _mode = Agent.Settings.FanMode;
         _syncingSynced = true;
-        SyncedPercent = fanModes.Settings.SyncedFanPercent;
+        SyncedPercent = Agent.Settings.SyncedFanPercent;
         _syncingSynced = false;
         ApplyModeFlags();
 
-        FanModes.HardwareObserved += (_, snapshot) => Sync(snapshot.Fans);
-        FanModes.ResultChanged += (_, result) => ApplyResult(result);
-        Settings.Changed += OnSettingsChanged;
-        Monitoring.PropertyChanged += OnMonitoringPropertyChanged;
-        ApplyStatus(Monitoring.HardwareStatus);
-        Sync(Monitoring.LatestHardware.Fans);
+        Agent.HardwareUpdated += (_, frame) =>
+        {
+            Sync(frame.Snapshot.Fans, frame.Fans);
+            ApplyResult(frame.Fans);
+        };
+        Agent.SettingsChanged += OnSettingsChanged;
+        Agent.PropertyChanged += OnAgentPropertyChanged;
+        ApplyStatus(Agent.HardwareStatus);
+        Sync(Agent.Hardware.Snapshot.Fans, Agent.Hardware.Fans);
     }
-
-    public IHardwareMonitor Hardware { get; }
-
-    public IElevationService Elevation { get; }
-
-    public FanModeService FanModes { get; }
 
     public ObservableCollection<FanGroupViewModel> Groups { get; } = new();
 
-    public override string PlaceholderText => Strings.PlaceholderFans;
+    /// <summary>The latest fan-mode evaluation (part of the last hardware frame).</summary>
+    private FanModeResult Current => Agent.Hardware.Fans;
 
     public bool IsIndividualMode => Mode == FanMode.Individual;
 
@@ -102,7 +100,54 @@ public sealed partial class FansViewModel : TabViewModelBase
     partial void OnModeChanged(FanMode value)
     {
         ApplyModeFlags();
-        FanModes.SetMode(value);
+        if (_syncingMode) return;
+        _ = SendModeAsync(value);
+    }
+
+    private async Task SendModeAsync(FanMode mode)
+    {
+        _modeRequests++;
+        CommandResult result;
+        try
+        {
+            result = await Agent.SetFanModeAsync(mode);
+        }
+        finally
+        {
+            _modeRequests--;
+        }
+        if (result.Ok) _log.LogInformation("Fan mode → {Mode}", mode);
+        else _log.LogWarning("Fan mode {Mode} was not applied: {Error}", mode, result.Error);
+        // Mirror the agent once the last request is answered (reverts a refused switch).
+        if (_modeRequests == 0) SyncModeFromSettings();
+    }
+
+    private async Task SendSyncedPercentAsync(double percent)
+    {
+        _syncedRequests++;
+        CommandResult result;
+        try
+        {
+            result = await Agent.SetSyncedPercentAsync(percent);
+        }
+        finally
+        {
+            _syncedRequests--;
+        }
+        if (!result.Ok) _log.LogWarning("Synced duty {Percent:0}% was not applied: {Error}", percent, result.Error);
+        if (_syncedRequests == 0) SyncSyncedFromSettings();
+    }
+
+    public override Task FlushPendingAsync()
+    {
+        var pending = new List<Task>();
+        if (_syncedTimer.IsEnabled)
+        {
+            _syncedTimer.Stop();
+            pending.Add(SendSyncedPercentAsync(SyncedPercent));
+        }
+        foreach (var item in Groups.SelectMany(g => g.Fans)) pending.Add(item.FlushPendingAsync());
+        return Task.WhenAll(pending);
     }
 
     partial void OnSyncedPercentChanged(double value)
@@ -120,19 +165,40 @@ public sealed partial class FansViewModel : TabViewModelBase
         _syncingSynced = true;
         SyncedPercent = percent;
         _syncingSynced = false;
-        FanModes.SetSyncedPercent(percent);
+        _ = SendSyncedPercentAsync(percent);
     }
 
     private void OnSettingsChanged(object? sender, string? name)
     {
-        // Keep the card in step when settings change elsewhere (e.g. the screenshot run).
-        if (Mode != FanModes.Settings.FanMode) Mode = FanModes.Settings.FanMode;
-        if (!_syncedTimer.IsEnabled && Math.Abs(SyncedPercent - FanModes.Settings.SyncedFanPercent) >= 0.5)
+        // Keep the card in step when the agent's settings change (Hello, another client, the screenshot run).
+        if (name is null or nameof(AppSettings.FanMode)) SyncModeFromSettings();
+        if (name is null or nameof(AppSettings.SyncedFanPercent)) SyncSyncedFromSettings();
+    }
+
+    private void SyncModeFromSettings()
+    {
+        // A broadcast that overtook our own pending switch would flip the card back and forth: wait for the reply.
+        if (_modeRequests > 0) return;
+        var mode = Agent.Settings.FanMode;
+        if (Mode == mode) return;
+        _syncingMode = true;
+        try
         {
-            _syncingSynced = true;
-            SyncedPercent = FanModes.Settings.SyncedFanPercent;
-            _syncingSynced = false;
+            Mode = mode;
         }
+        finally
+        {
+            _syncingMode = false;
+        }
+    }
+
+    private void SyncSyncedFromSettings()
+    {
+        if (_syncedTimer.IsEnabled || _syncedRequests > 0) return;
+        if (Math.Abs(SyncedPercent - Agent.Settings.SyncedFanPercent) < 0.5) return;
+        _syncingSynced = true;
+        SyncedPercent = Agent.Settings.SyncedFanPercent;
+        _syncingSynced = false;
     }
 
     private void ApplyModeFlags()
@@ -149,19 +215,19 @@ public sealed partial class FansViewModel : TabViewModelBase
         OnPropertyChanged(nameof(IsIndividualMode));
         OnPropertyChanged(nameof(IsGroupMode));
         foreach (var item in Groups.SelectMany(g => g.Fans)) item.SetMode(Mode, ModesEnabled);
-        ApplyResult(FanModes.Current);
+        ApplyResult(Current);
     }
 
-    private void OnMonitoringPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnAgentPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MonitoringService.HardwareStatus)) ApplyStatus(Monitoring.HardwareStatus);
+        if (e.PropertyName is nameof(AgentConnection.HardwareStatus) or nameof(AgentConnection.Info)) ApplyStatus(Agent.HardwareStatus);
     }
 
     private void ApplyStatus(HardwareMonitorStatus status)
     {
         var ready = status.State is HardwareMonitorState.Ready or HardwareMonitorState.Degraded;
         ShowBanner = !ready || !status.FanControlAvailable;
-        ShowElevate = !Elevation.IsElevated && Elevation.CanElevate;
+        ShowElevate = !Agent.Info.IsElevated && Agent.Info.CanElevate;
         RecoveryNotice = status.RecoveryNotice;
         HasRecoveryNotice = !string.IsNullOrWhiteSpace(status.RecoveryNotice);
         BannerText = !string.IsNullOrWhiteSpace(status.Message)
@@ -208,12 +274,27 @@ public sealed partial class FansViewModel : TabViewModelBase
         }
     }
 
-    private void SetMembership(string fanId, bool include) => FanModes.SetMembership(fanId, include);
-
-    private void Sync(IReadOnlyList<FanInfo> all)
+    private async void SetMembership(FanItemViewModel item, bool include)
     {
-        var presence = FanModes.Presence;
-        var fans = all.Where(f => presence.PresenceOf(f.Id) != FanPresence.Hidden).ToList();
+        var result = await Agent.SetFanMembershipAsync(item.Id, include);
+        if (result.Ok)
+        {
+            _log.LogInformation("Fan {Fan} group membership → {Include}", item.Name, include);
+            return;
+        }
+        _log.LogWarning("Fan {Fan} membership change failed: {Error}", item.Name, result.Error);
+        // Put the switch back to what the last evaluation says, then show why (ApplyStatus resets the error).
+        item.ApplyStatus(Current.Mode == Mode && Current.Fans.TryGetValue(item.Id, out var s) ? s : null);
+        item.Error = result.Error;
+    }
+
+    /// <summary>Headers the agent decided are not connected (never spun) are hidden; unknown ids are shown.</summary>
+    private static bool IsHidden(FanModeResult result, string fanId)
+        => result.Fans.TryGetValue(fanId, out var status) && status.Presence == FanPresence.Hidden;
+
+    private void Sync(IReadOnlyList<FanInfo> all, FanModeResult result)
+    {
+        var fans = all.Where(f => !IsHidden(result, f.Id)).ToList();
         HiddenCount = all.Count - fans.Count;
         HasHiddenFans = HiddenCount > 0;
         HiddenText = string.Format(Strings.FanHiddenHeadersFormat, HiddenCount);
@@ -250,9 +331,9 @@ public sealed partial class FansViewModel : TabViewModelBase
                 {
                     if (!existing.TryGetValue(fan.Id, out var item))
                     {
-                        item = new FanItemViewModel(fan.Id, Hardware, _log, SetMembership);
+                        item = new FanItemViewModel(fan.Id, Agent, _log, SetMembership);
                         item.SetMode(Mode, ModesEnabled);
-                        item.ApplyStatus(FanModes.Current.Mode == Mode && FanModes.Current.Fans.TryGetValue(fan.Id, out var s) ? s : null);
+                        item.ApplyStatus(result.Mode == Mode && result.Fans.TryGetValue(fan.Id, out var s) ? s : null);
                     }
                     item.Update(fan);
                     group.Fans.Add(item);
@@ -286,16 +367,16 @@ public sealed class FanGroupViewModel
 }
 
 /// <summary>
-/// One fan card. 個別 mode: manual toggle + debounced (300 ms) slider → <see cref="IHardwareMonitor.SetFanAsync"/>.
-/// 靜音 / 全部同步: a status chip and the "納入群組控制" switch; the manual controls are hidden.
+/// One fan card. 個別 mode: manual toggle + debounced (300 ms) slider → <see cref="AgentConnection.SetFanAsync"/> (the
+/// agent validates it). 靜音 / 全部同步: a status chip and the "納入群組控制" switch; the manual controls are hidden.
 /// </summary>
 public sealed partial class FanItemViewModel : ObservableObject
 {
     private static readonly TimeSpan SliderDebounce = TimeSpan.FromMilliseconds(300);
 
-    private readonly IHardwareMonitor _hardware;
+    private readonly AgentConnection _agent;
     private readonly ILogger _log;
-    private readonly Action<string, bool> _setMembership;
+    private readonly Action<FanItemViewModel, bool> _setMembership;
     private readonly DispatcherTimer _timer;
     private bool _syncing;
     private bool _syncingMember;
@@ -336,10 +417,10 @@ public sealed partial class FanItemViewModel : ObservableObject
     [ObservableProperty] private string? _memberHint;
     [ObservableProperty] private bool _hasMemberHint;
 
-    public FanItemViewModel(string id, IHardwareMonitor hardware, ILogger log, Action<string, bool> setMembership)
+    public FanItemViewModel(string id, AgentConnection agent, ILogger log, Action<FanItemViewModel, bool> setMembership)
     {
         Id = id;
-        _hardware = hardware;
+        _agent = agent;
         _log = log;
         _setMembership = setMembership;
         _timer = new DispatcherTimer(DispatcherPriority.Background) { Interval = SliderDebounce };
@@ -351,6 +432,14 @@ public sealed partial class FanItemViewModel : ObservableObject
     }
 
     public string Id { get; }
+
+    /// <summary>Sends a slider position still waiting in the debounce timer (before the popover exits).</summary>
+    public Task FlushPendingAsync()
+    {
+        if (!_timer.IsEnabled) return Task.CompletedTask;
+        _timer.Stop();
+        return IsManual && _mode == FanMode.Individual ? ApplyAsync(SliderValue) : Task.CompletedTask;
+    }
 
     /// <summary>Called by the tab when the fan mode or control availability changes.</summary>
     public void SetMode(FanMode mode, bool controlAvailable)
@@ -461,7 +550,7 @@ public sealed partial class FanItemViewModel : ObservableObject
     partial void OnIsMemberChanged(bool value)
     {
         if (_syncingMember) return;
-        _setMembership(Id, value);
+        _setMembership(this, value);
     }
 
     partial void OnSliderValueChanged(double value)
@@ -510,18 +599,22 @@ public sealed partial class FanItemViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            await Task.Run(() => _hardware.SetFanAsync(Id, percent));
-            _log.LogInformation("Fan {Fan} → {Percent}", Name, percent is { } p ? $"{p:0}%" : "auto");
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "SetFan {Fan} failed", Name);
-            Error = ex.Message;
+            var result = await _agent.SetFanAsync(Id, percent);
+            if (result.Ok)
+            {
+                _log.LogInformation("Fan {Fan} → {Percent}", Name, percent is { } p ? $"{p:0}%" : "auto");
+                return;
+            }
+
+            _log.LogWarning("SetFan {Fan} failed: {Error}", Name, result.Error);
+            Error = result.Error;
             if (percent is not null)
             {
+                // The agent refused the manual duty: the card goes back to "firmware in charge".
                 _syncing = true;
                 IsManual = false;
                 _syncing = false;
+                RefreshPresentation();
             }
         }
         finally

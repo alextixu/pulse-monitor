@@ -10,14 +10,17 @@ using Pulse.Core.Localization;
 using Pulse.App.Services;
 using Pulse.Core.Abstractions;
 using Pulse.Core.Models;
-using Pulse.Rgb;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 
 namespace Pulse.App.ViewModels;
 
-/// <summary>燈光 tab: OpenRGB status, global colour presets and one card per RGB device.</summary>
+/// <summary>
+/// 燈光 tab: OpenRGB status, global colour presets and one card per RGB device. The device list (the only payload with
+/// per-LED colours) is loaded lazily: when the tab is first shown, then again on <see cref="AgentConnection.RgbDevicesChanged"/>
+/// or a (re)connect. Every command addresses devices by <see cref="RgbDevice.Key"/> and the reply carries the device list after it.
+/// </summary>
 public sealed partial class LightingViewModel : TabViewModelBase
 {
     /// <summary>Preset palette shared by the global row, device cards and zones.</summary>
@@ -28,6 +31,8 @@ public sealed partial class LightingViewModel : TabViewModelBase
 
     private readonly ILogger<LightingViewModel> _log;
     private int _loadVersion;
+    /// <summary>The tab was shown at least once: from then on device changes are followed.</summary>
+    private bool _devicesWanted;
 
     [ObservableProperty] private string _statusText = Strings.RgbDisconnected;
     [ObservableProperty] private BccTone _statusTone = BccTone.Neutral;
@@ -46,29 +51,34 @@ public sealed partial class LightingViewModel : TabViewModelBase
     [ObservableProperty] private bool _showNoDevices;
     [ObservableProperty] private Color _customColor = Color.FromRgb(0x0A, 0x84, 0xFF);
 
-    public LightingViewModel(MonitoringService monitoring, SettingsService settings, IRgbController rgb, ILogger<LightingViewModel> log)
-        : base(MainTab.Lighting, monitoring, settings)
+    public LightingViewModel(AgentConnection agent, ILogger<LightingViewModel> log)
+        : base(MainTab.Lighting, agent)
     {
-        Rgb = rgb;
         _log = log;
         Presets = PresetHexes.Select(h => new ColorSwatchItem(RgbColor.FromHex(h), ApplyToAllCommand)).ToList();
-        Monitoring.PropertyChanged += OnMonitoringPropertyChanged;
-        Monitoring.RgbDevicesChanged += (_, _) => { if (IsConnected) _ = LoadDevicesAsync(); };
-        ApplyStatus(Monitoring.RgbStatus);
+        Agent.PropertyChanged += OnAgentPropertyChanged;
+        Agent.RgbDevicesChanged += (_, _) => { if (IsConnected && _devicesWanted) _ = LoadDevicesAsync(); };
+        ApplyStatus(Agent.RgbStatus);
     }
-
-    public IRgbController Rgb { get; }
 
     public IReadOnlyList<ColorSwatchItem> Presets { get; }
 
     public ObservableCollection<RgbDeviceViewModel> Devices { get; } = new();
 
-    public override string PlaceholderText => Strings.PlaceholderLighting;
-
     protected override void OnActivated()
     {
+        _devicesWanted = true;
         if (IsConnected && Devices.Count == 0 && !IsLoadingDevices) _ = LoadDevicesAsync();
     }
+
+    /// <summary>Loads the device list now (screenshot runs capture the tab right after selecting it).</summary>
+    public Task EnsureDevicesLoadedAsync()
+    {
+        _devicesWanted = true;
+        return IsConnected && Devices.Count == 0 ? LoadDevicesAsync() : Task.CompletedTask;
+    }
+
+    public override Task FlushPendingAsync() => Task.WhenAll(Devices.Select(d => d.FlushPendingAsync()));
 
     partial void OnErrorChanged(string? value) => HasError = !string.IsNullOrWhiteSpace(value);
 
@@ -79,8 +89,16 @@ public sealed partial class LightingViewModel : TabViewModelBase
         IsBusy = true;
         try
         {
-            var ok = await Monitoring.ConnectRgbAsync();
-            if (ok) await LoadDevicesAsync();
+            var result = await Agent.ConnectRgbAsync();
+            if (result.Ok)
+            {
+                _devicesWanted = true;
+                await LoadDevicesAsync();
+            }
+            else if (!string.IsNullOrWhiteSpace(result.Error))
+            {
+                Error = result.Error;
+            }
         }
         finally
         {
@@ -93,19 +111,18 @@ public sealed partial class LightingViewModel : TabViewModelBase
     {
         try
         {
-            Process.Start(new ProcessStartInfo(OpenRgbInfo.DownloadUrl) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(Strings.OpenRgbDownloadUrl) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
-            _log.LogWarning(ex, "Could not open {Url}", OpenRgbInfo.DownloadUrl);
-            Error = $"{Strings.OpenFailed}：{OpenRgbInfo.DownloadUrl}";
+            _log.LogWarning(ex, "Could not open {Url}", Strings.OpenRgbDownloadUrl);
+            Error = $"{Strings.OpenFailed}：{Strings.OpenRgbDownloadUrl}";
         }
     }
 
     [RelayCommand]
-    private Task ApplyToAllAsync(RgbColor color) => RunAsync(async () =>
+    private Task ApplyToAllAsync(RgbColor color) => RunAsync(new RgbCommand { Kind = RgbCommandKind.SetColor, Color = color }, _ =>
     {
-        await Task.Run(() => Rgb.SetAllAsync(color));
         foreach (var device in Devices) device.ReflectColor(color);
         _log.LogInformation("RGB: all devices → {Color}", color);
     });
@@ -114,43 +131,45 @@ public sealed partial class LightingViewModel : TabViewModelBase
     private Task ApplyCustomToAllAsync() => ApplyToAllAsync(new RgbColor(CustomColor.R, CustomColor.G, CustomColor.B));
 
     [RelayCommand]
-    private Task TurnOffAllAsync() => RunAsync(async () =>
+    private Task TurnOffAllAsync() => RunAsync(new RgbCommand { Kind = RgbCommandKind.TurnOff }, devices =>
     {
-        await Task.Run(() => Rgb.TurnOffAllAsync());
-        await SyncDevicesAsync();
+        SyncDevices(devices);
         _log.LogInformation("RGB: all devices off");
     });
 
     [RelayCommand]
-    private Task RestoreAllDefaultsAsync() => RunAsync(async () =>
+    private Task RestoreAllDefaultsAsync() => RunAsync(new RgbCommand { Kind = RgbCommandKind.RestoreDefault }, devices =>
     {
-        await Task.Run(() => Rgb.RestoreAllDefaultsAsync());
-        await SyncDevicesAsync();
+        SyncDevices(devices);
         _log.LogInformation("RGB: all devices restored to their defaults");
     });
 
-    /// <summary>Re-reads the backend's cached device list (no server round trip) and updates every card.</summary>
-    private async Task SyncDevicesAsync()
+    /// <summary>Mirrors the device list a command replied with into the cards (matched by key).</summary>
+    private void SyncDevices(IReadOnlyList<RgbDevice> devices)
     {
-        var devices = await Task.Run(() => Rgb.GetDevicesAsync(refresh: false));
         foreach (var vm in Devices)
         {
-            if (devices.FirstOrDefault(d => d.Index == vm.Index) is { } device) vm.Sync(device);
+            if (RgbDeviceViewModel.Find(devices, vm.Key, vm.Index) is { } device) vm.Sync(device);
         }
     }
 
-    private async Task RunAsync(Func<Task> action)
+    /// <summary>Runs a command for every device (Key null); <paramref name="onSuccess"/> gets the device list after it.</summary>
+    private async Task RunAsync(RgbCommand command, Action<IReadOnlyList<RgbDevice>> onSuccess)
     {
         Error = null;
         IsBusy = true;
         try
         {
-            await action();
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "RGB command failed");
-            Error = ex.Message;
+            var result = await Agent.RgbCommandAsync(command);
+            if (result.Ok)
+            {
+                onSuccess(result.Devices);
+            }
+            else
+            {
+                _log.LogWarning("RGB {Kind} (all devices) failed: {Error}", command.Kind, result.Error);
+                Error = result.Error;
+            }
         }
         finally
         {
@@ -158,9 +177,9 @@ public sealed partial class LightingViewModel : TabViewModelBase
         }
     }
 
-    private void OnMonitoringPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnAgentPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MonitoringService.RgbStatus)) ApplyStatus(Monitoring.RgbStatus);
+        if (e.PropertyName == nameof(AgentConnection.RgbStatus)) ApplyStatus(Agent.RgbStatus);
     }
 
     private void ApplyStatus(RgbStatus status)
@@ -176,7 +195,7 @@ public sealed partial class LightingViewModel : TabViewModelBase
         ServerVersionText = HasServerVersion ? string.Format(Strings.RgbServerVersionFormat, status.ServerVersion) : null;
         UpdateStatusText();
 
-        if (IsConnected && (!wasConnected || Devices.Count == 0))
+        if (IsConnected && _devicesWanted && (!wasConnected || Devices.Count == 0))
         {
             _ = LoadDevicesAsync();
         }
@@ -191,7 +210,7 @@ public sealed partial class LightingViewModel : TabViewModelBase
 
     private void UpdateStatusText()
     {
-        StatusText = Monitoring.RgbStatus.State switch
+        StatusText = Agent.RgbStatus.State switch
         {
             RgbConnectionState.Connected => string.Format(Strings.RgbConnectedFormat, Devices.Count),
             RgbConnectionState.Connecting => Strings.RgbConnecting,
@@ -206,23 +225,24 @@ public sealed partial class LightingViewModel : TabViewModelBase
         IsLoadingDevices = true;
         try
         {
-            var devices = await Task.Run(() => Rgb.GetDevicesAsync(refresh: true));
+            var result = await Agent.GetRgbDevicesAsync(refresh: true);
             if (version != _loadVersion) return;
+            if (!result.Ok)
+            {
+                _log.LogWarning("Loading RGB devices failed: {Error}", result.Error);
+                Error = result.Error;
+                return;
+            }
 
+            var devices = result.Devices;
             Devices.Clear();
             foreach (var device in devices)
             {
-                Devices.Add(new RgbDeviceViewModel(device, Rgb, _log));
+                Devices.Add(new RgbDeviceViewModel(device, Agent, _log));
             }
             HasDevices = Devices.Count > 0;
             ShowNoDevices = IsConnected && Devices.Count == 0;
             _log.LogInformation("RGB devices: {Count} ({Names})", devices.Count, string.Join(", ", devices.Select(d => d.Name)));
-        }
-        catch (Exception ex)
-        {
-            if (version != _loadVersion) return;
-            _log.LogWarning(ex, "Loading RGB devices failed");
-            Error = ex.Message;
         }
         finally
         {
@@ -249,15 +269,20 @@ public sealed class ColorSwatchItem
     public ICommand Command { get; }
 }
 
-/// <summary>One RGB device card. Mode / brightness / speed changes are applied through <see cref="IRgbController.SetModeAsync"/> (sliders debounced 250 ms).</summary>
+/// <summary>
+/// One RGB device card. Commands go to the agent as <see cref="RgbCommand"/> addressed by <see cref="Key"/> (the index is
+/// only a hint); mode / brightness / speed changes are one SetMode command (sliders debounced 250 ms).
+/// </summary>
 public sealed partial class RgbDeviceViewModel : ObservableObject
 {
     private static readonly TimeSpan SliderDebounce = TimeSpan.FromMilliseconds(250);
 
-    private readonly IRgbController _rgb;
+    private readonly AgentConnection _agent;
     private readonly ILogger _log;
     private readonly DispatcherTimer _sliderTimer;
     private bool _syncing;
+    /// <summary>A first-seen default snapshot exists for this device (from the agent's device list).</summary>
+    private bool _hasDefault;
 
     [ObservableProperty] private string _name = string.Empty;
     [ObservableProperty] private string _typeText = string.Empty;
@@ -293,11 +318,13 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
 
     private readonly RgbMode? _fallbackEffect;
 
-    public RgbDeviceViewModel(RgbDevice device, IRgbController rgb, ILogger log)
+    public RgbDeviceViewModel(RgbDevice device, AgentConnection agent, ILogger log)
     {
-        _rgb = rgb;
+        _agent = agent;
         _log = log;
+        Key = device.Key ?? string.Empty;
         Index = device.Index;
+        _hasDefault = device.HasDefault;
         Modes = device.Modes;
         _fallbackEffect = RgbModeRules.FindFirmwareEffect(device.Modes);
         Presets = LightingViewModel.PresetHexes.Select(h => new ColorSwatchItem(RgbColor.FromHex(h), SetColorCommand)).ToList();
@@ -320,6 +347,10 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
         UpdateRestoreAvailability();
     }
 
+    /// <summary>Stable device identity the agent resolves to the current backend index.</summary>
+    public string Key { get; }
+
+    /// <summary>Backend index when the list was loaded (a hint for the agent; the key wins).</summary>
     public int Index { get; }
 
     public IReadOnlyList<RgbMode> Modes { get; }
@@ -337,9 +368,16 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
         CustomColor = Color.FromRgb(color.R, color.G, color.B);
     }
 
-    /// <summary>Mirrors the backend's view of the device (active mode, colour) without re-applying anything.</summary>
+    /// <summary>The device with <paramref name="key"/> in <paramref name="devices"/> (by index only for a backend without keys).</summary>
+    internal static RgbDevice? Find(IReadOnlyList<RgbDevice> devices, string key, int index)
+        => key.Length > 0
+            ? devices.FirstOrDefault(d => d.Key == key)
+            : devices.FirstOrDefault(d => string.IsNullOrEmpty(d.Key) && d.Index == index);
+
+    /// <summary>Mirrors the backend's view of the device (active mode, colour, saved default) without re-applying anything.</summary>
     public void Sync(RgbDevice device)
     {
+        _hasDefault = device.HasDefault;
         _sliderTimer.Stop();
         var wasSyncing = _syncing;
         _syncing = true;
@@ -386,9 +424,8 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private Task SetColorAsync(RgbColor color) => RunAsync(async () =>
+    private Task SetColorAsync(RgbColor color) => RunAsync(Command(RgbCommandKind.SetColor) with { Color = color }, _ =>
     {
-        await Task.Run(() => _rgb.SetDeviceColorAsync(Index, color));
         ReflectColor(color);
         _log.LogInformation("RGB {Device} → {Color}", Name, color);
     });
@@ -397,59 +434,50 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
     private Task ApplyCustomAsync() => SetColorAsync(new RgbColor(CustomColor.R, CustomColor.G, CustomColor.B));
 
     [RelayCommand]
-    private Task SetZoneColorAsync(ZoneColorRequest request) => RunAsync(async () =>
-    {
-        await Task.Run(() => _rgb.SetZoneColorAsync(Index, request.ZoneIndex, request.Color));
-        _log.LogInformation("RGB {Device} zone {Zone} → {Color}", Name, request.ZoneIndex, request.Color);
-    });
+    private Task SetZoneColorAsync(ZoneColorRequest request)
+        => RunAsync(Command(RgbCommandKind.SetZoneColor) with { ZoneIndex = request.ZoneIndex, Color = request.Color }, _ =>
+            _log.LogInformation("RGB {Device} zone {Zone} → {Color}", Name, request.ZoneIndex, request.Color));
 
     [RelayCommand]
-    private Task TurnOffAsync() => RunAsync(async () =>
+    private Task TurnOffAsync() => RunAsync(Command(RgbCommandKind.TurnOff), devices =>
     {
-        await Task.Run(() => _rgb.TurnOffAsync(Index));
-        await RefreshFromBackendAsync();
+        SyncFrom(devices);
         Notice = Strings.TurnedOff;
         _log.LogInformation("RGB {Device} off", Name);
     });
 
     [RelayCommand(CanExecute = nameof(CanRestore))]
-    private Task RestoreDefaultAsync() => RunAsync(async () =>
+    private Task RestoreDefaultAsync() => RunAsync(Command(RgbCommandKind.RestoreDefault), devices =>
     {
-        await Task.Run(() => _rgb.RestoreDefaultAsync(Index));
-        await RefreshFromBackendAsync();
+        SyncFrom(devices);
         Notice = Strings.RestoredDefault;
         _log.LogInformation("RGB {Device} restored to its default", Name);
     });
 
     [RelayCommand]
-    private Task SaveAsDefaultAsync() => RunAsync(async () =>
+    private Task SaveAsDefaultAsync() => RunAsync(Command(RgbCommandKind.SaveAsDefault), devices =>
     {
-        await Task.Run(() => _rgb.SaveCurrentAsDefaultAsync(Index));
-        await RefreshFromBackendAsync();
-        Notice = _rgb.HasDefault(Index) ? Strings.SavedAsDefault : null;
+        SyncFrom(devices);
+        Notice = _hasDefault ? Strings.SavedAsDefault : null;
         _log.LogInformation("RGB {Device}: current state saved as default", Name);
     });
 
-    private async Task RefreshFromBackendAsync()
+    /// <summary>
+    /// A command for this device. The key is always sent (empty for a backend without keys, never null: a null key
+    /// would address every device).
+    /// </summary>
+    private RgbCommand Command(RgbCommandKind kind) => new() { Kind = kind, Key = Key, Index = Index };
+
+    /// <summary>Applies this device's entry of a command reply (the device list after the command).</summary>
+    private void SyncFrom(IReadOnlyList<RgbDevice> devices)
     {
-        var devices = await Task.Run(() => _rgb.GetDevicesAsync(refresh: false));
-        if (devices.FirstOrDefault(d => d.Index == Index) is { } device) Sync(device);
+        if (Find(devices, Key, Index) is { } device) Sync(device);
         else UpdateRestoreAvailability();
     }
 
     private void UpdateRestoreAvailability()
     {
-        bool hasDefault;
-        try
-        {
-            hasDefault = _rgb.HasDefault(Index);
-        }
-        catch (Exception ex)
-        {
-            _log.LogDebug(ex, "HasDefault failed for {Device}", Name);
-            hasDefault = false;
-        }
-
+        var hasDefault = _hasDefault;
         CanRestore = hasDefault || _fallbackEffect is not null;
         ShowRestoreHint = !CanRestore;
         RestoreTip = hasDefault
@@ -457,20 +485,28 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
             : _fallbackEffect is { } effect ? string.Format(Strings.RestoreFallbackFormat, effect.Name) : Strings.RestoreUnavailable;
     }
 
+    /// <summary>Sends a brightness / speed change still waiting in the debounce timer (before the popover exits).</summary>
+    public Task FlushPendingAsync()
+    {
+        if (!_sliderTimer.IsEnabled) return Task.CompletedTask;
+        _sliderTimer.Stop();
+        return ApplyModeAsync();
+    }
+
     private Task ApplyModeAsync()
     {
         var mode = SelectedMode;
         if (mode is null) return Task.CompletedTask;
-        return RunAsync(async () =>
+        var command = Command(RgbCommandKind.SetMode) with
         {
-            await Task.Run(() => _rgb.SetModeAsync(
-                Index,
-                mode.Index,
-                mode.SupportsColor ? CurrentColor : null,
-                mode.SupportsSpeed ? (int)Math.Round(Speed) : null,
-                mode.SupportsBrightness ? (int)Math.Round(Brightness) : null));
-            _log.LogInformation("RGB {Device} mode → {Mode}", Name, mode.Name);
-        });
+            ModeName = mode.Name,
+            ModeIndex = mode.Index,
+            Color = mode.SupportsColor ? CurrentColor : null,
+            Speed = mode.SupportsSpeed ? (int)Math.Round(Speed) : null,
+            Brightness = mode.SupportsBrightness ? (int)Math.Round(Brightness) : null,
+        };
+        // No sync from the reply: a slider dragged meanwhile has re-armed the timer and must not be reset.
+        return RunAsync(command, _ => _log.LogInformation("RGB {Device} mode → {Mode}", Name, mode.Name));
     }
 
     private void ApplyModeCapabilities(RgbMode? mode)
@@ -491,18 +527,22 @@ public sealed partial class RgbDeviceViewModel : ObservableObject
         _syncing = wasSyncing;
     }
 
-    private async Task RunAsync(Func<Task> action)
+    private async Task RunAsync(RgbCommand command, Action<IReadOnlyList<RgbDevice>> onSuccess)
     {
         Error = null;
         IsBusy = true;
         try
         {
-            await action();
-        }
-        catch (Exception ex)
-        {
-            _log.LogWarning(ex, "RGB command for {Device} failed", Name);
-            Error = ex.Message;
+            var result = await _agent.RgbCommandAsync(command);
+            if (result.Ok)
+            {
+                onSuccess(result.Devices);
+            }
+            else
+            {
+                _log.LogWarning("RGB {Kind} for {Device} failed: {Error}", command.Kind, Name, result.Error);
+                Error = result.Error;
+            }
         }
         finally
         {

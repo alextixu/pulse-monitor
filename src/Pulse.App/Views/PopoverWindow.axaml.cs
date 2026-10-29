@@ -13,8 +13,9 @@ namespace Pulse.App.Views;
 
 /// <summary>
 /// Frameless tray popover. The visible card is 400×660 DIPs (height shrinks to fit the work area); the window is
-/// larger by <see cref="ShadowMargin"/> on each side so the drop shadow is not clipped. Hidden (never closed) on
-/// Escape / deactivation; <see cref="ShowPopover"/> repositions next to the tray every time.
+/// larger by <see cref="ShadowMargin"/> on each side so the drop shadow is not clipped. Hidden (never closed by the
+/// user) on Escape / deactivation, which raises <see cref="PopoverHidden"/> (the process then exits);
+/// <see cref="ShowPopover"/> repositions next to the tray every time.
 /// </summary>
 public partial class PopoverWindow : Window
 {
@@ -45,9 +46,11 @@ public partial class PopoverWindow : Window
         this.AttachDevTools();
 #endif
         Deactivated += OnDeactivated;
-        Opened += (_, _) => _viewModel.Monitoring.NotifyPopoverOpened();
         _viewModel.LowBatteryDetected += OnLowBatteryDetected;
     }
+
+    /// <summary>The popover was hidden (deactivation, Escape, toggle, close button of the OS).</summary>
+    public event EventHandler? PopoverHidden;
 
     protected override void OnOpened(EventArgs e)
     {
@@ -116,8 +119,8 @@ public partial class PopoverWindow : Window
             Show();
         }
         Activate();
+        // Tells the agent (SetVisibility): hardware frames stream and batteries refresh only while visible.
         _viewModel.IsPopoverVisible = true;
-        _viewModel.Monitoring.NotifyPopoverOpened();
         Dispatcher.UIThread.Post(FlushToasts, DispatcherPriority.Background);
     }
 
@@ -127,6 +130,7 @@ public partial class PopoverWindow : Window
         Hide();
         LastHiddenAt = DateTimeOffset.Now;
         _viewModel.IsPopoverVisible = false;
+        PopoverHidden?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Tray-click behaviour: hide when visible, otherwise show (unless it was just hidden by the same click).</summary>
@@ -183,7 +187,7 @@ public partial class PopoverWindow : Window
 
     protected override void OnClosing(WindowClosingEventArgs e)
     {
-        // The popover is never closed by the user; App shuts the lifetime down instead.
+        // The popover is never closed by the user (that is a hide, which ends the process); App shuts the lifetime down.
         if (!e.IsProgrammatic)
         {
             e.Cancel = true;

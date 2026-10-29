@@ -1,16 +1,21 @@
+using System.Diagnostics;
 using Avalonia;
 using Pulse.App.Services;
+using Pulse.Engine;
 using Microsoft.Extensions.Logging;
 
 namespace Pulse.App;
 
 internal static class Program
 {
-    /// <summary>How long an "--elevated-relaunch" instance waits for the previous instance to release the mutex.</summary>
-    private static readonly TimeSpan RelaunchMutexWait = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// How long a second launch waits for a popover that is just exiting (it hid a moment ago and no longer reacts to the
+    /// show signal) before giving up.
+    /// </summary>
+    private static readonly TimeSpan SingleInstanceHandOver = TimeSpan.FromSeconds(2);
 
-    /// <summary>How long "--quit" waits for the running instance to finish its clean shutdown.</summary>
-    private static readonly TimeSpan QuitTimeout = TimeSpan.FromSeconds(15);
+    /// <summary>%LOCALAPPDATA%\Pulse\logs\ui.log (the agent writes app.log next to it).</summary>
+    public static string UiLogPath => Path.Combine(Path.GetDirectoryName(FileLoggerProvider.DefaultPath)!, "ui.log");
 
     // Initialization code. Don't use any Avalonia, third-party APIs or any
     // SynchronizationContext-reliant code before AppMain is called: things aren't initialized
@@ -19,24 +24,21 @@ internal static class Program
     public static int Main(string[] args)
     {
         var options = AppOptions.Parse(args);
-        var fileLogger = new FileLoggerProvider(FileLoggerProvider.DefaultPath);
-        using var loggerFactory = LoggerFactory.Create(builder => AppLogging.Configure(builder, fileLogger));
+        var fileLogger = new FileLoggerProvider(UiLogPath);
+        using var loggerFactory = AppLogging.CreateFactory(fileLogger);
         var log = loggerFactory.CreateLogger("Pulse.App.Program");
 
         InstallGlobalExceptionLogging(log);
+        log.LogInformation("Pulse.UI starting (pid {Pid}, args: {Args}); Main at +{Ms:0} ms",
+            Environment.ProcessId, string.Join(' ', args), MillisecondsSinceStart());
 
-        if (options.Quit)
-        {
-            return SingleInstance.RequestQuit(QuitTimeout, log) ? 0 : 1;
-        }
-
-        SingleInstance? instance = null;
+        UiSingleInstance? instance = null;
         if (!options.Demo)
         {
-            instance = SingleInstance.TryAcquire(options.ElevatedRelaunch ? RelaunchMutexWait : TimeSpan.Zero, log);
+            instance = UiSingleInstance.TryAcquire(SingleInstanceHandOver, log);
             if (instance is null)
             {
-                log.LogInformation("Another instance is already running; exiting");
+                log.LogInformation("Another popover is running; exiting");
                 return 0;
             }
         }
@@ -45,11 +47,10 @@ internal static class Program
         App.LoggerFactory = loggerFactory;
         App.Instance = instance;
 
-        log.LogInformation("Pulse starting (pid {Pid}, args: {Args})", Environment.ProcessId, string.Join(' ', args));
         try
         {
             var code = BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
-            log.LogInformation("Pulse exited with code {Code}", code);
+            log.LogInformation("Pulse.UI exited with code {Code}", code);
             return code;
         }
         catch (Exception ex)
@@ -59,7 +60,9 @@ internal static class Program
         }
         finally
         {
+            // Released on the thread that acquired it, after the pipe was closed (see App.ShutdownAsync).
             instance?.Dispose();
+            fileLogger.Dispose();
         }
     }
 
@@ -70,17 +73,28 @@ internal static class Program
             .WithInterFont()
             .LogToTrace();
 
+    /// <summary>Time since the OS started this process (startup deltas in the log).</summary>
+    public static double MillisecondsSinceStart()
+    {
+        try
+        {
+            using var process = Process.GetCurrentProcess();
+            return (DateTime.Now - process.StartTime).TotalMilliseconds;
+        }
+        catch
+        {
+            return -1;
+        }
+    }
+
     private static void InstallGlobalExceptionLogging(ILogger log)
     {
+        // The popover holds no fans or devices: unhandled exceptions are only logged (the agent restores fans itself).
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             if (e.ExceptionObject is Exception ex) log.LogCritical(ex, "Unhandled exception (terminating={Terminating})", e.IsTerminating);
             else log.LogCritical("Unhandled non-exception object: {Object}", e.ExceptionObject);
-            // The process is about to die: hand manual fans back before it does.
-            if (e.IsTerminating) App.RestoreFansOnAbnormalExit("unhandled exception");
         };
-        // Covers exits that skip the Avalonia Exit event (e.g. Environment.Exit, console close). A no-op after a clean exit.
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => App.RestoreFansOnAbnormalExit("process exit");
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
             log.LogError(e.Exception, "Unobserved task exception");

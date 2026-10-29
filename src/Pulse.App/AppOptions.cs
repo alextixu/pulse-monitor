@@ -1,24 +1,26 @@
+using Pulse.App.ViewModels;
+
 namespace Pulse.App;
 
-/// <summary>Parsed command line. Immutable; created once in <see cref="Program"/> and exposed as <see cref="App.Options"/>.</summary>
+/// <summary>
+/// Parsed command line of <c>Pulse.UI.exe [--popover] [--tab &lt;name&gt;] [--demo] [--screenshot &lt;dir&gt;]</c>.
+/// Immutable; created once in <see cref="Program"/> and exposed as <see cref="App.Options"/>. Unknown arguments are ignored.
+/// </summary>
 public sealed record AppOptions
 {
-    /// <summary>"--minimized": start with the popover hidden (tray only).</summary>
-    public bool StartMinimized { get; init; }
+    /// <summary>"--popover": started by the agent's tray icon (informational; the popover is always shown at start).</summary>
+    public bool Popover { get; init; }
 
-    /// <summary>"--elevated-relaunch": this instance was started by <c>IElevationService.RelaunchElevated</c>; never relaunch again.</summary>
-    public bool ElevatedRelaunch { get; init; }
+    /// <summary>"--tab &lt;name&gt;": open on this tab (devices / system / lighting / fans / settings) instead of the last one.</summary>
+    public MainTab? Tab { get; init; }
 
-    /// <summary>"--demo": fake providers with design data, no hardware access.</summary>
+    /// <summary>"--demo": an in-process demo agent with design data, no pipe, no hardware access.</summary>
     public bool Demo { get; init; }
 
     /// <summary>"--screenshot &lt;dir&gt;": render every tab to PNG files in the directory and exit (implies demo).</summary>
     public string? ScreenshotDirectory { get; init; }
 
     public bool IsScreenshotMode => ScreenshotDirectory is not null;
-
-    /// <summary>"--quit": ask the running instance to exit cleanly (restoring fans) and exit; starts no UI.</summary>
-    public bool Quit { get; init; }
 
     public static AppOptions Parse(string[] args)
     {
@@ -27,23 +29,22 @@ public sealed record AppOptions
         {
             switch (args[i].ToLowerInvariant())
             {
-                case "--minimized":
-                case "-m":
-                    options = options with { StartMinimized = true };
+                case "--popover":
+                    options = options with { Popover = true };
                     break;
-                case "--elevated-relaunch":
-                    options = options with { ElevatedRelaunch = true };
+                case "--tab":
+                    if (i + 1 < args.Length)
+                    {
+                        options = options with { Tab = ParseTab(args[++i]) };
+                    }
                     break;
                 case "--demo":
                     options = options with { Demo = true };
                     break;
-                case "--quit":
-                    options = options with { Quit = true };
-                    break;
                 case "--screenshot":
                     if (i + 1 < args.Length)
                     {
-                        options = options with { Demo = true, StartMinimized = true, ScreenshotDirectory = Path.GetFullPath(args[++i]) };
+                        options = options with { Demo = true, ScreenshotDirectory = Path.GetFullPath(args[++i]) };
                     }
                     break;
             }
@@ -51,4 +52,10 @@ public sealed record AppOptions
 
         return options;
     }
+
+    /// <summary>"settings" / "Fans" … → the tab; null for anything else (also used for the agent's ShowPopover tab).</summary>
+    public static MainTab? ParseTab(string? name)
+        => !string.IsNullOrWhiteSpace(name) && Enum.TryParse<MainTab>(name.Trim(), ignoreCase: true, out var tab) && Enum.IsDefined(tab)
+            ? tab
+            : null;
 }

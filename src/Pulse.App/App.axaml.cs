@@ -1,35 +1,53 @@
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using Pulse.App.Demo;
+using Pulse.App.Localization;
 using Pulse.App.Services;
 using Pulse.App.ViewModels;
 using Pulse.App.Views;
 using Pulse.Core.Abstractions;
 using Pulse.Core.Models;
-using Pulse.Hardware;
-using Pulse.Asus;
-using Pulse.Logitech;
-using Pulse.Rgb;
-using Pulse.Windows;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pulse.Engine;
+using Pulse.Engine.Demo;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Pulse.App;
 
+/// <summary>
+/// The popover process. Lifecycle: show the window at once (theme from ui-state.json), connect to the agent (or start
+/// the in-process demo agent) and fill the view models when it answers; when the popover hides, send the debounced
+/// writes still pending (≤ 1 s), save ui-state.json and exit — every open is a fresh process. The agent's Exiting
+/// message (quit, elevation relaunch, pipe gone) also ends the process.
+/// </summary>
 public partial class App : Application
 {
-    private ServiceProvider? _services;
-    private ILogger<App>? _log;
+    /// <summary>How long the pipe client keeps retrying while no agent listens.</summary>
+    private static readonly TimeSpan ConnectWindow = TimeSpan.FromSeconds(10);
+
+    /// <summary>Budget for the debounced writes (and their replies) after the popover hid.</summary>
+    private static readonly TimeSpan ExitFlushBudget = TimeSpan.FromSeconds(1);
+
+    /// <summary>How long 「Pulse 已更新，請重新開啟」 stays up before the process exits by itself.</summary>
+    private static readonly TimeSpan ProtocolMismatchExit = TimeSpan.FromSeconds(6);
+
+    private ILoggerFactory _loggerFactory = NullLoggerFactory.Instance;
+    private ILogger _log = NullLogger.Instance;
+    private IClassicDesktopStyleApplicationLifetime? _desktop;
     private PopoverWindow? _popover;
-    private TrayService? _tray;
-    private IHardwareMonitor? _hardware;
-    private FanModeService? _fanModes;
     private MainViewModel? _viewModel;
+    private AgentConnection? _connection;
+    private IpcPulseClient? _ipc;
+    private AgentCore? _demoAgent;
+    private UiState _uiState = new();
+    /// <summary>The popover hid and the exit flush is running (a show request in that window cancels the exit).</summary>
+    private bool _exitPending;
+    /// <summary>Past the point of no return: no more shows, the pipe is closing.</summary>
+    private bool _shuttingDown;
 
     /// <summary>Parsed command line (set by <see cref="Program"/> before Avalonia starts).</summary>
     public static AppOptions Options { get; internal set; } = new();
@@ -38,13 +56,10 @@ public partial class App : Application
     internal static ILoggerFactory? LoggerFactory { get; set; }
 
     /// <summary>Single-instance guard owned by <see cref="Program"/>; null in demo / screenshot mode.</summary>
-    internal static SingleInstance? Instance { get; set; }
+    internal static UiSingleInstance? Instance { get; set; }
 
     /// <summary>The running application (null at design time).</summary>
     public static new App? Current => Application.Current as App;
-
-    /// <summary>Root DI container (available after OnFrameworkInitializationCompleted).</summary>
-    public IServiceProvider Services => _services ?? throw new InvalidOperationException("Services are not built yet.");
 
     public MainViewModel? MainViewModel => _viewModel;
 
@@ -57,6 +72,7 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            _desktop = desktop;
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             try
             {
@@ -64,7 +80,7 @@ public partial class App : Application
             }
             catch (Exception ex)
             {
-                _log?.LogCritical(ex, "Startup failed");
+                _log.LogCritical(ex, "Startup failed");
                 desktop.Shutdown(2);
                 return;
             }
@@ -85,212 +101,267 @@ public partial class App : Application
         };
     }
 
-    /// <summary>
-    /// Last-chance fan restore for exits that bypass <see cref="OnExit"/> (unhandled exception, process exit).
-    /// Disposing the hardware monitor hands manual fans back; it is idempotent, so this is a no-op after a clean exit.
-    /// </summary>
-    internal static void RestoreFansOnAbnormalExit(string reason)
-    {
-        if (Current is not { _hardware: { } hardware } app) return;
-        try
-        {
-            app._log?.LogWarning("Restoring fans on {Reason}", reason);
-            // Stop the fan modes first so nothing re-applies a duty after the monitor hands the fans back.
-            app._fanModes?.StopApplying();
-            hardware.Dispose();
-        }
-        catch
-        {
-            // Nothing more can be done while the process is going down.
-        }
-    }
-
-    public void ShowPopover() => _popover?.ShowPopover();
-
-    public void HidePopover() => _popover?.HidePopover();
-
-    public void TogglePopover() => _popover?.TogglePopover();
-
     private void Startup(IClassicDesktopStyleApplicationLifetime desktop)
     {
-        _services = BuildServices();
-        _log = _services.GetRequiredService<ILogger<App>>();
-        _log.LogInformation("Composition done (demo={Demo}, screenshot={Screenshot}, minimized={Minimized})",
-            Options.Demo, Options.IsScreenshotMode, Options.StartMinimized);
+        _loggerFactory = LoggerFactory ?? NullLoggerFactory.Instance;
+        _log = _loggerFactory.CreateLogger<App>();
+        _log.LogInformation("Starting (demo={Demo}, screenshot={Screenshot}, popover={Popover}, tab={Tab})",
+            Options.Demo, Options.IsScreenshotMode, Options.Popover, Options.Tab);
 
-        var settingsService = _services.GetRequiredService<SettingsService>();
-        ApplyTheme(settingsService.Settings.Theme);
-        if (!Options.Demo && !File.Exists(settingsService.FilePath))
+        // Demo runs read nothing of the user's popover state and write nothing back.
+        _uiState = Options.Demo ? new UiState() : UiStateStore.Load(_log);
+        ApplyTheme(_uiState.Theme);
+
+        IPulseAgent agent;
+        if (Options.Demo)
         {
-            // Persist the defaults on first run so the user can find and edit the file.
-            settingsService.Save();
+            _demoAgent = CreateDemoAgent(_loggerFactory);
+            agent = _demoAgent;
         }
-        settingsService.Changed += (_, name) =>
+        else
         {
-            if (name is null || name == nameof(AppSettings.Theme)) ApplyTheme(settingsService.Settings.Theme);
-        };
-
-        var elevation = _services.GetRequiredService<IElevationService>();
-        if (!Options.Demo && !Options.ElevatedRelaunch && settingsService.Settings.RequestElevationOnStartup
-            && elevation.CanElevate && !elevation.IsElevated)
-        {
-            _log.LogInformation("RequestElevationOnStartup: relaunching elevated");
-            if (elevation.RelaunchElevated())
-            {
-                desktop.Shutdown(0);
-                return;
-            }
-            _log.LogWarning("Elevated relaunch declined or failed; continuing unelevated");
+            _ipc = new IpcPulseClient(_loggerFactory.CreateLogger<IpcPulseClient>());
+            agent = _ipc;
         }
 
-        _viewModel = _services.GetRequiredService<MainViewModel>();
+        var connection = new AgentConnection(agent, Options.Demo, _loggerFactory.CreateLogger<AgentConnection>());
+        _connection = connection;
+        _viewModel = new MainViewModel(
+            connection,
+            Options,
+            new DevicesViewModel(connection, _loggerFactory.CreateLogger<DevicesViewModel>()),
+            new SystemViewModel(connection, _loggerFactory.CreateLogger<SystemViewModel>()),
+            new LightingViewModel(connection, _loggerFactory.CreateLogger<LightingViewModel>()),
+            new FansViewModel(connection, _loggerFactory.CreateLogger<FansViewModel>()),
+            new SettingsViewModel(connection, Options, _loggerFactory.CreateLogger<SettingsViewModel>()),
+            _loggerFactory.CreateLogger<MainViewModel>());
+        _viewModel.SelectedTab = Options.Tab ?? _uiState.LastTab ?? MainTab.Devices;
         _viewModel.ShowPopoverRequested += (_, _) => ShowPopover();
-        _viewModel.QuitRequested += (_, _) => desktop.Shutdown(0);
+
+        connection.SettingsChanged += OnSettingsChanged;
+        connection.Exiting += OnAgentExiting;
+        connection.ShowPopoverRequested += (_, request) => OnShowPopoverRequested(request);
 
         _popover = new PopoverWindow(_viewModel);
+        _popover.PopoverHidden += (_, _) => _ = ExitAfterHideAsync();
         desktop.Exit += OnExit;
-
-        var monitoring = _services.GetRequiredService<MonitoringService>();
-        // Resolved before polling starts so it sees the first snapshot; disposed before IHardwareMonitor (dependency order).
-        _fanModes = _services.GetRequiredService<FanModeService>();
-        // Demo / screenshot data is fake: never let it into the real telemetry file.
-        if (!Options.Demo) _services.GetRequiredService<TelemetryLogger>().Start();
-        monitoring.Start();
 
         if (Options.IsScreenshotMode)
         {
-            _ = RunScreenshotsAsync(desktop, _viewModel, Options.ScreenshotDirectory!);
+            _ = RunScreenshotsAsync(_viewModel, Options.ScreenshotDirectory!);
             return;
         }
 
-        _tray = _services.GetRequiredService<TrayService>();
-        _tray.Initialize();
-        _tray.Clicked += (_, _) => TogglePopover();
-
-        _hardware = _services.GetRequiredService<IHardwareMonitor>();
-        Instance?.StartListening(
-            onShowRequested: () => Dispatcher.UIThread.Post(ShowPopover),
-            onQuitRequested: () => Dispatcher.UIThread.Post(() =>
-            {
-                _log?.LogInformation("Quit requested by another process (--quit)");
-                desktop.Shutdown(0);
-            }));
-
-        if (!Options.StartMinimized)
+        ShowPopover();
+        _log.LogInformation("Popover shown at +{Ms:0} ms", Program.MillisecondsSinceStart());
+        Instance?.StartListening(() => Dispatcher.UIThread.Post(() =>
         {
+            _log.LogInformation("Show requested by a second launch");
             ShowPopover();
+        }));
+
+        _ = ConnectAsync();
+    }
+
+    /// <summary>The engine in this process with the design-data providers: no pipe, no files, no hardware.</summary>
+    private static AgentCore CreateDemoAgent(ILoggerFactory loggerFactory)
+    {
+        var version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
+        return new AgentCore(new AgentCoreOptions
+        {
+            LoggerFactory = loggerFactory,
+            // Reads the user's settings.json once (read-only) and keeps every change in memory.
+            SettingsStore = new DemoSettingsStore(loggerFactory.CreateLogger<JsonSettingsStore>(), loggerFactory.CreateLogger<DemoSettingsStore>()),
+            StateStore = new InMemoryStateStore(),
+            Hardware = new DemoHardwareMonitor(loggerFactory.CreateLogger<DemoHardwareMonitor>()),
+            Rgb = new DemoRgbController(loggerFactory.CreateLogger<DemoRgbController>()),
+            BatteryProviders = new IBatteryProvider[] { new DemoBatteryProvider(loggerFactory.CreateLogger<DemoBatteryProvider>()) },
+            Elevation = new DemoElevationService(loggerFactory.CreateLogger<DemoElevationService>()),
+            AutoStart = new DemoAutoStartService(),
+            TelemetryDirectory = null,
+            LogPath = Program.UiLogPath,
+            IsDemo = true,
+            Version = version,
+            RelaunchElevated = null,
+        });
+    }
+
+    private async Task ConnectAsync()
+    {
+        var connection = _connection!;
+        try
+        {
+            if (_demoAgent is { } demo)
+            {
+                await Task.Run(() => demo.StartAsync());
+                connection.OnAgentReady();
+                return;
+            }
+
+            var outcome = await _ipc!.ConnectAsync(ConnectWindow);
+            switch (outcome)
+            {
+                case AgentConnectOutcome.Connected:
+                    connection.OnAgentReady();
+                    _log.LogInformation("Hello received at +{Ms:0} ms", Program.MillisecondsSinceStart());
+                    break;
+                case AgentConnectOutcome.ProtocolMismatch:
+                    connection.ReportConnectionError(UiStrings.ProtocolMismatch);
+                    await Task.Delay(ProtocolMismatchExit);
+                    await ShutdownAsync(0);
+                    break;
+                default:
+                    // Stays up with the hint until the user dismisses it (which ends the process like any hide).
+                    connection.ReportConnectionError(UiStrings.AgentUnavailable);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Connecting to the agent failed");
+            connection.ReportConnectionError(UiStrings.AgentUnavailable);
         }
     }
 
-    private async Task RunScreenshotsAsync(IClassicDesktopStyleApplicationLifetime desktop, MainViewModel viewModel, string directory)
+    private void ShowPopover()
+    {
+        if (_shuttingDown) return;
+        _popover?.ShowPopover();
+    }
+
+    /// <summary>The agent's tray icon was clicked (toggle) or it asked for a tab (show).</summary>
+    private void OnShowPopoverRequested(PopoverRequest request)
+    {
+        if (_shuttingDown || _popover is null || _viewModel is null) return;
+        var tab = AppOptions.ParseTab(request.Tab);
+        if (request.Toggle && tab is null)
+        {
+            // Visible → hide (and exit); hidden by the same click's deactivation a moment ago → stays hidden.
+            _popover.TogglePopover();
+            return;
+        }
+
+        if (tab is { } t) _viewModel.SelectedTab = t;
+        ShowPopover();
+    }
+
+    private void OnSettingsChanged(object? sender, string? name)
+    {
+        // Screenshot runs drive the theme themselves; a settings broadcast must not flip it mid-capture.
+        if (Options.IsScreenshotMode || _connection is null) return;
+        if (name is null || name == nameof(AppSettings.Theme)) ApplyTheme(_connection.Settings.Theme);
+    }
+
+    private void OnAgentExiting(object? sender, AgentExitReason reason)
+    {
+        _log.LogInformation("Agent exiting ({Reason}); closing the popover", reason);
+        _ = ShutdownAsync(0);
+    }
+
+    /// <summary>
+    /// The popover hid: fire the debounce timers and wait (≤ 1 s) for the replies, then exit unless it was shown again
+    /// meanwhile (a tray click or second launch during the flush).
+    /// </summary>
+    private async Task ExitAfterHideAsync()
+    {
+        if (Options.IsScreenshotMode || _shuttingDown || _exitPending) return;
+        _exitPending = true;
+        try
+        {
+            _log.LogInformation("Popover hidden; exiting");
+            await Task.WhenAny(FlushPendingWritesAsync(), Task.Delay(ExitFlushBudget));
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Flushing pending writes failed");
+        }
+        finally
+        {
+            _exitPending = false;
+        }
+
+        if (_popover is { IsVisible: true })
+        {
+            _log.LogInformation("Popover shown again before exiting; staying");
+            return;
+        }
+        await ShutdownAsync(0);
+    }
+
+    private async Task FlushPendingWritesAsync()
+    {
+        if (_viewModel is not null) await _viewModel.FlushPendingAsync();
+        if (_connection is not null) await _connection.WhenIdleAsync();
+    }
+
+    /// <summary>
+    /// Ends the process: no more show requests, ui-state.json written, the pipe closed (queued messages drained first)
+    /// or the demo engine stopped, then the Avalonia lifetime. The single-instance mutex is released last by Program.
+    /// </summary>
+    private async Task ShutdownAsync(int exitCode)
+    {
+        if (_shuttingDown) return;
+        _shuttingDown = true;
+        Instance?.StopListening();
+        SaveUiState();
+
+        try
+        {
+            if (_ipc is { } ipc) await ipc.CloseAsync(TimeSpan.FromMilliseconds(500));
+            if (_demoAgent is { } demo) await Task.WhenAny(demo.ShutdownAsync(AgentExitReason.Quit), Task.Delay(TimeSpan.FromSeconds(3)));
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Agent teardown failed");
+        }
+
+        _desktop?.Shutdown(exitCode);
+    }
+
+    private void SaveUiState()
+    {
+        if (Options.Demo || _viewModel is null || _connection is null) return;
+        // Without an agent the settings copy holds defaults: keep the cached theme then.
+        var theme = _connection.IsReady ? _connection.Settings.Theme : _uiState.Theme;
+        UiStateStore.Save(new UiState { Theme = theme, LastTab = _viewModel.SelectedTab }, _log);
+    }
+
+    private async Task RunScreenshotsAsync(MainViewModel viewModel, string directory)
     {
         var exitCode = 0;
         try
         {
+            await Task.Run(() => _demoAgent!.StartAsync());
+            _connection!.OnAgentReady();
+            // Visible from the start: 1 s hardware cadence and a battery refresh for the first shots.
+            _connection.SetUiVisible(true);
             // Give the demo providers a moment to deliver their first data so the shots are not empty.
             await Task.Delay(900);
-            var files = await ScreenshotService.CaptureAsync(_popover!, viewModel, directory, _log!);
-            _log!.LogInformation("Screenshot run complete: {Count} file(s) in {Dir}", files.Count, directory);
+            var files = await ScreenshotService.CaptureAsync(_popover!, viewModel, directory, _log);
+            _log.LogInformation("Screenshot run complete: {Count} file(s) in {Dir}", files.Count, directory);
             if (files.Count == 0) exitCode = 3;
         }
         catch (Exception ex)
         {
-            _log?.LogError(ex, "Screenshot run failed");
+            _log.LogError(ex, "Screenshot run failed");
             exitCode = 3;
         }
         finally
         {
-            desktop.Shutdown(exitCode);
+            await ShutdownAsync(exitCode);
         }
     }
 
     private void OnExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
-        _log?.LogInformation("Exiting with code {Code}", e.ApplicationExitCode);
+        _log.LogInformation("Exiting with code {Code}", e.ApplicationExitCode);
         try
         {
-            _tray?.Dispose();
             _popover?.Close();
         }
         catch (Exception ex)
         {
-            _log?.LogDebug(ex, "Tray/popover teardown failed");
+            _log.LogDebug(ex, "Popover teardown failed");
         }
-
-        try
-        {
-            // Singletons are disposed in reverse creation order: FanModeService (stops applying) before MonitoringService,
-            // then IHardwareMonitor (restores fans) / IRgbController / providers.
-            _services?.Dispose();
-        }
-        catch (Exception ex)
-        {
-            _log?.LogWarning(ex, "Service disposal failed");
-        }
-        _services = null;
-        // Services (and with them the fans) are already restored: the ProcessExit hook has nothing left to do.
-        _hardware = null;
-    }
-
-    private static ServiceProvider BuildServices()
-    {
-        var services = new ServiceCollection();
-
-        // Logging: reuse the factory created in Program (file + Debug sinks).
-        var loggerFactory = LoggerFactory ?? Microsoft.Extensions.Logging.LoggerFactory.Create(b =>
-            AppLogging.Configure(b, new FileLoggerProvider(FileLoggerProvider.DefaultPath)));
-        services.AddSingleton(loggerFactory);
-        services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
-
-        services.AddSingleton(Options);
-        if (Options.Demo)
-        {
-            // Demo / screenshot runs read the user's settings but never write them back (they switch fan modes etc.).
-            services.AddSingleton<ISettingsStore, DemoSettingsStore>();
-        }
-        else
-        {
-            services.AddSingleton<ISettingsStore, JsonSettingsStore>();
-        }
-        services.AddSingleton(sp => sp.GetRequiredService<ISettingsStore>().Load());
-        services.AddSingleton<SettingsService>();
-
-        if (Options.Demo)
-        {
-            services.AddSingleton<IBatteryProvider, DemoBatteryProvider>();
-            services.AddSingleton<IHardwareMonitor, DemoHardwareMonitor>();
-            services.AddSingleton<IRgbController, DemoRgbController>();
-            services.AddSingleton<IElevationService, DemoElevationService>();
-            services.AddSingleton<IAutoStartService, DemoAutoStartService>();
-        }
-        else if (OperatingSystem.IsWindows())
-        {
-            services.AddWindowsPlatformServices();
-            services.AddLogitechHidpp();
-            services.AddAsusRog();
-            services.AddLibreHardwareMonitor();
-            services.AddOpenRgb();
-        }
-
-        // Fallbacks for anything a platform package did not register.
-        services.TryAddSingleton<IHardwareMonitor, NullHardwareMonitor>();
-        services.TryAddSingleton<IRgbController, NullRgbController>();
-        services.TryAddSingleton<IElevationService, NullElevationService>();
-        services.TryAddSingleton<IAutoStartService, NullAutoStartService>();
-
-        services.AddSingleton<TrayIconRenderer>();
-        services.AddSingleton<MonitoringService>();
-        services.AddSingleton<FanModeService>();
-        services.AddSingleton<TelemetryLogger>();
-
-        services.AddSingleton<DevicesViewModel>();
-        services.AddSingleton<SystemViewModel>();
-        services.AddSingleton<LightingViewModel>();
-        services.AddSingleton<FansViewModel>();
-        services.AddSingleton<SettingsViewModel>();
-        services.AddSingleton<MainViewModel>();
-        services.AddSingleton<TrayService>();
-
-        return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
 }

@@ -87,7 +87,7 @@ public sealed class DemoRgbController : IRgbController
         lock (_gate)
         {
             if (_status.State != RgbConnectionState.Connected) return Task.FromResult<IReadOnlyList<RgbDevice>>(Array.Empty<RgbDevice>());
-            return Task.FromResult<IReadOnlyList<RgbDevice>>(_devices.Select(d => d.ToDevice()).ToList());
+            return Task.FromResult<IReadOnlyList<RgbDevice>>(_devices.Select(d => d.ToDevice(_defaults.ContainsKey(d.Index))).ToList());
         }
     }
 
@@ -305,9 +305,14 @@ public sealed class DemoRgbController : IRgbController
         public int Brightness { get; set; }
         public int Speed { get; set; }
 
-        public RgbDevice ToDevice() => new()
+        /// <summary>Stable demo identity in the same "name|location|serial" shape as the OpenRGB keys.</summary>
+        public string Key => $"{Name}|demo|{Index}";
+
+        public RgbDevice ToDevice(bool hasDefault) => new()
         {
             Index = Index,
+            Key = Key,
+            HasDefault = hasDefault,
             Name = Name,
             Type = Type,
             Vendor = Vendor,
